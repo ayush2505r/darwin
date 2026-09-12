@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 from db import execute_insert, execute_query, fetch_all, fetch_one
 from llm import call_llm
+from soup_training import schedule_soup_training
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -154,6 +155,8 @@ def record_autonomous_evaluation(
         logger.info(f"Feedback threshold reached ({total_feedback} total). Triggering Meta-Agent evolution cycle.")
         evolution_result = evolve_population()
 
+    soup_training_result = schedule_soup_training(total_feedback)
+
     return {
         "feedback_id": feedback_id,
         "knowledge_id": knowledge_id,
@@ -164,7 +167,8 @@ def record_autonomous_evaluation(
         "agent_avg_score": new_avg,
         "total_feedback_count": total_feedback,
         "evolution_triggered": evolution_result is not None,
-        "evolution_details": evolution_result
+        "evolution_details": evolution_result,
+        "soup_training": soup_training_result
     }
 
 
@@ -234,6 +238,8 @@ def record_feedback(
         logger.info(f"Feedback threshold reached ({total_feedback} total). Triggering Meta-Agent evolution cycle.")
         evolution_result = evolve_population()
 
+    soup_training_result = schedule_soup_training(total_feedback)
+
     return {
         "feedback_id": feedback_id,
         "knowledge_id": knowledge_id,
@@ -241,7 +247,8 @@ def record_feedback(
         "agent_avg_score": new_avg,
         "total_feedback_count": total_feedback,
         "evolution_triggered": evolution_result is not None,
-        "evolution_details": evolution_result
+        "evolution_details": evolution_result,
+        "soup_training": soup_training_result
     }
 
 

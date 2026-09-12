@@ -75,6 +75,19 @@ copy .env.example .env   # Windows: copy .env.example .env
 
 Fill `.env` (see `.env.example`). Set `GROQ_MODEL` to a live Groq id (for example `openai/gpt-oss-20b`). `llama-3.3-70b-versatile` was shut down on Groq and will 404.
 
+## Soup feedback training
+
+The Soup repository is vendored at `vendor/Soup`. Every 1,000th feedback record creates an Alpaca JSONL dataset and a Soup SFT config under `training/soup`, then launches `soup train` in a detached process. Runs are recorded in the `soup_training_runs` MySQL table and duplicate launches for the same feedback boundary are prevented.
+
+Soup requires Python 3.10–3.12 and its training extra. Install it in a compatible environment, then set `SOUP_CLI` to that environment's `soup` executable if it is not on `PATH`:
+
+```powershell
+py -3.12 -m venv .soup-venv
+.soup-venv\Scripts\pip install -e "vendor/Soup[train]"
+```
+
+Configure `SOUP_BASE_MODEL`, `SOUP_ENABLED`, and `SOUP_WORK_DIR` in `.env.example` as needed. A CUDA GPU is recommended; CPU training is supported by Soup but is very slow.
+
 If `GROQ_API_KEY` is empty, the app uses deterministic mock LLM responses so the pipeline still runs.
 
 ```bash

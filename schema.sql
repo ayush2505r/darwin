@@ -62,3 +62,21 @@ CREATE TABLE IF NOT EXISTS evolution_log (
     details TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS soup_training_runs (
+    run_id INT AUTO_INCREMENT PRIMARY KEY,
+    feedback_count INT NOT NULL,
+    example_count INT NOT NULL DEFAULT 0,
+    status ENUM('queued', 'running', 'completed', 'failed', 'disabled') NOT NULL DEFAULT 'queued',
+    dataset_path VARCHAR(1024) NOT NULL,
+    config_path VARCHAR(1024) NOT NULL,
+    output_path VARCHAR(1024) NOT NULL,
+    log_path VARCHAR(1024) NULL,
+    pid BIGINT NULL,
+    error_message TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP NULL,
+    finished_at TIMESTAMP NULL,
+    UNIQUE KEY uq_soup_feedback_count (feedback_count),
+    INDEX idx_soup_training_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
