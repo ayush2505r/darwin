@@ -8,9 +8,9 @@
     <span>📝</span> Submit a Lesson Request
   </div>
   <p class="help-text" style="margin-bottom: 1.5rem;">
-    Enter a topic and optional student context. The assessor builds a student profile, three teaching agents
-    each write a classroom guide for <strong>{{ session.get('teacher_name', 'you') }}</strong>, and the Meta-Agent
-    scores those guides. You follow the champion plan in class — you do not score the agents.
+    Enter a topic and optional student context or problems. Darwin builds a student profile, finds relevant classroom resources,
+    and has three teaching agents write classroom guides for <strong>{{ session.get('teacher_name', 'you') }}</strong>.
+    The Meta-Agent scores those guides and presents everything together.
   </p>
 
   <form id="lesson-form" action="{{ url_for('generate_lesson_route') }}" method="POST" enctype="multipart/form-data">
@@ -28,13 +28,13 @@
     </div>
 
     <div class="form-group">
-      <label for="context_text">Student Context &amp; Notes (Optional)</label>
+      <label for="context_text">Student Context, Problems &amp; Notes (Optional)</label>
       <textarea 
         id="context_text" 
         name="context_text" 
-        placeholder="Describe what your students already understand, where they struggle, or paste classroom observations..."
+        placeholder="Describe what your students already understand, the problems they are facing, where they struggle, or paste classroom observations..."
       ></textarea>
-      <div class="help-text">Written observations regarding student background or previous lesson questions.</div>
+      <div class="help-text">These notes help both the AI lesson and the web-resource search find material suited to your students.</div>
     </div>
 
     <div class="form-group">

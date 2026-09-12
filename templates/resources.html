@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Teaching Resources{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 1.5rem auto;">
+  <div class="card-title"><span>🔎</span> Find Teaching Resources</div>
+  <p class="help-text" style="margin-bottom: 1.25rem;">
+    Search the web for classroom-ready explanations, activities, references, and learning materials. Results are retrieved through DuckDuckGo and ranked toward educational, government, nonprofit, and reputable teaching sources.
+  </p>
+
+  <form action="{{ url_for('resources_route') }}" method="GET">
+    <div class="form-group">
+      <label for="topic">What do you want to teach?</label>
+      <input type="search" id="topic" name="topic" value="{{ topic }}" placeholder="e.g. artificial intelligence, photosynthesis, Newton's laws" required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="student_level">Student level (optional)</label>
+      <select id="student_level" name="student_level">
+        <option value="" {% if not student_level %}selected{% endif %}>Any level</option>
+        {% for level in ['beginner', 'intermediate', 'advanced'] %}
+          <option value="{{ level }}" {% if student_level == level %}selected{% endif %}>{{ level|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem;">Search for Resources</button>
+  </form>
+</div>
+
+{% if search_error %}
+<div class="alert alert-error" style="max-width: 900px; margin: 1rem auto;">{{ search_error }}</div>
+{% endif %}
+
+{% if topic and not search_error %}
+<div style="max-width: 900px; margin: 1.5rem auto 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+  <h2 style="font-size: 1.2rem; color: #fff; margin: 0;">Resources for “{{ topic }}”</h2>
+  <span class="help-text">{{ results|length }} resource{% if results|length != 1 %}s{% endif %} found</span>
+</div>
+
+{% for result in results %}
+<div class="card" style="max-width: 900px; margin: 0 auto 0.9rem;">
+  <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start;">
+    <div>
+      <h3 style="font-size: 1.05rem; margin-bottom: 0.35rem;"><a href="{{ result.url }}" target="_blank" rel="noopener noreferrer" style="color: #93c5fd; text-decoration: none;">{{ result.title }}</a></h3>
+      <div style="font-size: 0.76rem; color: #6ee7b7; margin-bottom: 0.55rem;">{{ result.source }}</div>
+    </div>
+    <a href="{{ result.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.65rem; white-space: nowrap;">Open Source ↗</a>
+  </div>
+  {% if result.body %}<p style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.55; margin: 0;">{{ result.body }}</p>{% endif %}
+</div>
+{% else %}
+<div class="card" style="max-width: 900px; margin: 0 auto; text-align: center; color: var(--text-muted);">No resources were found. Try a more specific topic.</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

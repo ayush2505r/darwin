@@ -194,6 +194,17 @@ class DarwinTestCase(unittest.TestCase):
         self.assertNotIn("```", cleaned)
         self.assertIn("Hello", cleaned)
 
+    def test_11_resources_page_requires_login(self):
+        """Teacher resource search is protected and renders without a query."""
+        self.client.get("/logout")
+        anon = self.client.get("/resources", follow_redirects=False)
+        self.assertEqual(anon.status_code, 302)
+
+        self._login_default_teacher()
+        response = self.client.get("/resources")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Find Teaching Resources", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

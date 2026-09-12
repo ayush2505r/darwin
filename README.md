@@ -75,6 +75,8 @@ copy .env.example .env   # Windows: copy .env.example .env
 
 Fill `.env` (see `.env.example`). Set `GROQ_MODEL` to a live Groq id (for example `openai/gpt-oss-20b`). `llama-3.3-70b-versatile` was shut down on Groq and will 404.
 
+The authenticated `Teaching Resources` page uses the `ddgs` DuckDuckGo search library to find and rank classroom-oriented web resources. Install dependencies with `pip install -r requirements.txt`; the search page handles missing packages or temporary search failures without affecting lesson generation.
+
 ## Soup feedback training
 
 The Soup repository is vendored at `vendor/Soup`. Every 1,000th feedback record creates an Alpaca JSONL dataset and a Soup SFT config under `training/soup`, then launches `soup train` in a detached process. Runs are recorded in the `soup_training_runs` MySQL table and duplicate launches for the same feedback boundary are prevented.

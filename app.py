@@ -36,6 +36,7 @@ from db import fetch_all, fetch_one, create_teacher, verify_teacher, init_db
 from pipeline import run_lesson_pipeline
 from evolution import FEEDBACK_THRESHOLD, record_feedback
 from transcription import validate_file
+from resource_search import search_resources_safely
 
 # Load environment configuration
 load_dotenv()
@@ -178,6 +179,24 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/resources", methods=["GET"])
+@login_required
+def resources_route():
+    """Find web resources teachers can use for a classroom topic."""
+    topic = request.args.get("topic", "").strip()
+    student_level = request.args.get("student_level", "").strip()
+    student_context = request.args.get("student_context", "").strip()
+    search = search_resources_safely(topic, student_level, student_context) if topic else {"results": [], "error": None}
+    return render_template(
+        "resources.html",
+        topic=topic,
+        student_level=student_level,
+        student_context=student_context,
+        results=search["results"],
+        search_error=search["error"],
+    )
+
+
 @app.route("/lesson", methods=["POST"])
 @login_required
 def generate_lesson_route():
@@ -234,6 +253,15 @@ def generate_lesson_route():
         agent_plans = result.get("agent_plans", [])
         champion_plan = result.get("champion_plan") or (agent_plans[0] if agent_plans else None)
 
+        # Use the same topic and the teacher's student notes/problems to find
+        # classroom resources shown beside the generated AI guides. Search is
+        # deliberately best-effort so a DuckDuckGo failure never breaks lessons.
+        resource_search = search_resources_safely(
+            topic=topic,
+            student_level=student_profile.get("level", ""),
+            student_context=context_text or "",
+        )
+
         if not agent_plans:
             flash("No active teaching agents found. Please run seed.py to seed the database.", "error")
             return redirect(url_for("index"))
@@ -245,7 +273,9 @@ def generate_lesson_route():
             agent_plans=agent_plans,
             champion_plan=champion_plan,
             evolution_triggered=result.get("evolution_triggered", False),
-            evolution_details=result.get("evolution_details")
+            evolution_details=result.get("evolution_details"),
+            resources=resource_search["results"],
+            resource_search_error=resource_search["error"],
         )
     except Exception as e:
         logger.exception("Error executing lesson pipeline")

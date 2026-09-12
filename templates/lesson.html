@@ -76,6 +76,30 @@
 </div>
 {% endif %}
 
+<!-- DuckDuckGo classroom resources based on the topic and student context -->
+<div class="card" style="border-color: #8b5cf6; margin-bottom: 1.25rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.55rem;">
+    <div class="card-title" style="color: #c4b5fd; margin-bottom: 0;">
+      <span>🔎</span> Recommended Classroom Resources
+    </div>
+    <span style="font-size: 0.78rem; color: var(--text-muted);">Searched from your topic and student context</span>
+  </div>
+  {% if resource_search_error %}
+    <p class="help-text">Resource search is temporarily unavailable, but your AI lesson is ready. You can try again with another lesson request.</p>
+  {% elif resources %}
+    <p class="help-text" style="margin-bottom: 0.85rem;">These sources were ranked toward educational, government, nonprofit, and reputable teaching sites.</p>
+    {% for resource in resources %}
+      <div style="padding: 0.75rem 0; border-top: 1px solid var(--card-border);">
+        <a href="{{ resource.url }}" target="_blank" rel="noopener noreferrer" style="color: #93c5fd; font-weight: 700; text-decoration: none;">{{ resource.title }}</a>
+        <div style="font-size: 0.75rem; color: #6ee7b7; margin: 0.2rem 0;">{{ resource.source }}</div>
+        {% if resource.body %}<div style="font-size: 0.84rem; color: #cbd5e1; line-height: 1.5;">{{ resource.body }}</div>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="help-text">No matching web resources were found for this topic. Try making the topic more specific.</p>
+  {% endif %}
+</div>
+
 <!-- Champion Banner -->
 {% if champion_plan %}
 <div class="champion-banner">
