@@ -3,6 +3,7 @@
 import json
 import sys
 from db import init_db, fetch_one, fetch_all, execute_insert
+from evolution import POPULATION_FLOOR
 
 INITIAL_AGENTS = [
     {
@@ -77,8 +78,8 @@ def seed_database(force: bool = False, reset: bool = False) -> None:
     existing_count = fetch_one("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
     count = existing_count["count"] if existing_count else 0
 
-    if count > 0 and not force and not reset:
-        print(f"Database already contains {count} active agents. Skipping agent seed (use --reset to reseed).")
+    if count >= POPULATION_FLOOR and not force and not reset:
+        print(f"Database already contains {count} active agents (>= floor of {POPULATION_FLOOR}). Skipping agent seed (use --reset to reseed).")
         return
 
     print(f"Seeding {len(INITIAL_AGENTS)} initial Generation-1 teaching agents...")

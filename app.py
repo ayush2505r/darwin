@@ -196,7 +196,10 @@ def generate_lesson_route():
         file = request.files["media_file"]
         if file and file.filename and file.filename.strip():
             filename = secure_filename(file.filename)
-            is_valid, err_msg = validate_file(filename)
+            file.seek(0, os.SEEK_END)
+            upload_size = file.tell()
+            file.seek(0)
+            is_valid, err_msg = validate_file(filename, file_size=upload_size)
             if not is_valid:
                 flash(err_msg, "error")
                 return redirect(url_for("index"))
