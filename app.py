@@ -24,11 +24,11 @@ import json
 import logging
 import os
 import uuid
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-from db import fetch_all, fetch_one
+from db import fetch_all, fetch_one, get_connection, create_teacher, verify_teacher
 from pipeline import run_lesson_pipeline
 from evolution import record_feedback, FEEDBACK_THRESHOLD
 from transcription import validate_file
@@ -48,6 +48,91 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32MB max request payload
 
 
+# ---------------------------------------------------------------------------
+# Terminal Database Connection Check
+# ---------------------------------------------------------------------------
+def verify_mysql_connection():
+    """Verify MySQL connectivity and print required terminal message."""
+    try:
+        conn = get_connection(include_database=True)
+        if conn.is_connected():
+            conn.close()
+    except Exception as e:
+        logger.error(f"Failed to connect to MySQL: {e}")
+
+
+# Run check on startup
+verify_mysql_connection()
+
+
+# ---------------------------------------------------------------------------
+# Authentication Routes (Teacher Login, Register, Logout)
+# ---------------------------------------------------------------------------
+@app.route("/login", methods=["GET", "POST"])
+def login_route():
+    """Teacher login endpoint."""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            flash("Please provide both username and password.", "error")
+            return render_template("login.html")
+
+        teacher = verify_teacher(username, password)
+        if teacher:
+            session["teacher_id"] = teacher["teacher_id"]
+            session["teacher_name"] = teacher["full_name"]
+            session["username"] = teacher["username"]
+            flash(f"Welcome back, {teacher['full_name']}!", "success")
+            return redirect(url_for("index"))
+        else:
+            flash("Invalid username or password. Please try again.", "error")
+
+    return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register_route():
+    """Teacher registration endpoint."""
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not full_name or not username or not password:
+            flash("All fields are required.", "error")
+            return render_template("register.html")
+
+        existing = fetch_one("SELECT teacher_id FROM teachers WHERE LOWER(username) = LOWER(%s)", (username,))
+        if existing:
+            flash(f"Username '{username}' is already taken. Please choose another.", "error")
+            return render_template("register.html")
+
+        try:
+            teacher_id = create_teacher(username=username, password=password, full_name=full_name)
+            session["teacher_id"] = teacher_id
+            session["teacher_name"] = full_name
+            session["username"] = username
+            flash("Account registered successfully! You are now logged in.", "success")
+            return redirect(url_for("index"))
+        except Exception as e:
+            flash(f"Registration failed: {e}", "error")
+
+    return render_template("register.html")
+
+
+@app.route("/logout", methods=["GET"])
+def logout_route():
+    """Log out teacher."""
+    session.clear()
+    flash("You have been successfully logged out.", "info")
+    return redirect(url_for("login_route"))
+
+
+# ---------------------------------------------------------------------------
+# Core Lesson & Feedback Routes
+# ---------------------------------------------------------------------------
 @app.route("/", methods=["GET"])
 def index():
     """Form to submit a new lesson request with topic and optional context."""
@@ -56,7 +141,7 @@ def index():
 
 @app.route("/lesson", methods=["POST"])
 def generate_lesson_route():
-    """Run assessment + teaching agent LangGraph pipeline and show result."""
+    """Run assessment + multi-agent LangGraph pipeline (3 agents) and display comparison."""
     topic = request.form.get("topic", "").strip()
     if not topic:
         flash("Please enter a lesson topic to proceed.", "error")
@@ -76,7 +161,6 @@ def generate_lesson_route():
                 flash(err_msg, "error")
                 return redirect(url_for("index"))
 
-            # Save with unique prefix to avoid collision
             unique_name = f"{uuid.uuid4().hex[:8]}_{filename}"
             saved_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
             file.save(saved_path)
@@ -84,7 +168,7 @@ def generate_lesson_route():
             original_filename = filename
 
     try:
-        # Execute LangGraph pipeline
+        # Execute LangGraph pipeline (generates 3 agent proposals)
         result = run_lesson_pipeline(
             topic=topic,
             context_text=context_text,
@@ -92,12 +176,10 @@ def generate_lesson_route():
             original_filename=original_filename
         )
 
-        agent = result.get("selected_agent")
         student_profile = result.get("student_profile", {})
-        lesson_plan = result.get("lesson_plan", "")
-        collective_memory = result.get("collective_memory", [])
+        agent_plans = result.get("agent_plans", [])
 
-        if not agent:
+        if not agent_plans:
             flash("No active teaching agents found. Please run seed.py to seed the database.", "error")
             return redirect(url_for("index"))
 
@@ -105,9 +187,11 @@ def generate_lesson_route():
             "lesson.html",
             topic=topic,
             student_profile=student_profile,
-            agent=agent,
-            collective_memory=collective_memory,
-            lesson_plan=lesson_plan
+            agent_plans=agent_plans,
+            # Backwards compatibility defaults
+            agent=agent_plans[0]["agent"],
+            collective_memory=agent_plans[0].get("collective_memory", []),
+            lesson_plan=agent_plans[0].get("lesson_plan", "")
         )
     except Exception as e:
         logger.exception("Error executing lesson pipeline")
@@ -125,8 +209,8 @@ def submit_feedback_route():
         score = int(request.form.get("score", 3))
         comment = request.form.get("comment", "").strip() or None
         lesson_excerpt = request.form.get("lesson_excerpt", "").strip() or None
+        teacher_id = session.get("teacher_id")
 
-        # Validate score range (1 to 5)
         if score < 1 or score > 5:
             flash("Score must be between 1 and 5.", "error")
             return redirect(url_for("index"))
@@ -138,7 +222,8 @@ def submit_feedback_route():
             student_level=student_level,
             score=score,
             comment=comment,
-            lesson_excerpt=lesson_excerpt
+            lesson_excerpt=lesson_excerpt,
+            teacher_id=teacher_id
         )
 
         return render_template(

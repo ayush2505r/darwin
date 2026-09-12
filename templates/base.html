@@ -15,6 +15,15 @@
       <nav class="nav-links">
         <a href="{{ url_for('index') }}" class="{% if request.endpoint in ['index', 'generate_lesson_route'] %}active{% endif %}">New Lesson</a>
         <a href="{{ url_for('agents_dashboard') }}" class="{% if request.endpoint == 'agents_dashboard' %}active{% endif %}">Agent Population</a>
+        {% if session.get('teacher_id') %}
+          <span style="color: #6ee7b7; font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; padding-left: 0.5rem; border-left: 1px solid var(--card-border);">
+            👤 {{ session.get('teacher_name', 'Teacher') }}
+          </span>
+          <a href="{{ url_for('logout_route') }}" style="color: #f87171; font-size: 0.85rem;">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login_route') }}" class="{% if request.endpoint == 'login_route' %}active{% endif %}" style="padding-left: 0.5rem; border-left: 1px solid var(--card-border);">Login</a>
+          <a href="{{ url_for('register_route') }}" class="{% if request.endpoint == 'register_route' %}active{% endif %}">Register</a>
+        {% endif %}
       </nav>
     </div>
   </header>

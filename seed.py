@@ -50,18 +50,31 @@ def seed_database(force: bool = False, reset: bool = False) -> None:
             cursor.execute("DELETE FROM feedback")
             cursor.execute("DELETE FROM knowledge_pool")
             cursor.execute("DELETE FROM agents")
+            cursor.execute("DELETE FROM teachers")
             cursor.execute("ALTER TABLE evolution_log AUTO_INCREMENT = 1")
             cursor.execute("ALTER TABLE feedback AUTO_INCREMENT = 1")
             cursor.execute("ALTER TABLE knowledge_pool AUTO_INCREMENT = 1")
             cursor.execute("ALTER TABLE agents AUTO_INCREMENT = 1")
+            cursor.execute("ALTER TABLE teachers AUTO_INCREMENT = 1")
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
         print("All tables cleared.")
+
+    # Seed default teacher if not exists
+    from db import fetch_one, create_teacher
+    existing_teacher = fetch_one("SELECT teacher_id FROM teachers WHERE username = 'teacher'")
+    if not existing_teacher:
+        teacher_id = create_teacher(
+            username="teacher",
+            password="password123",
+            full_name="Prof. Darwin (Default Teacher)"
+        )
+        print(f"  [+] Created default teacher account: 'teacher' / 'password123' (ID: #{teacher_id})")
 
     existing_count = fetch_one("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
     count = existing_count["count"] if existing_count else 0
 
     if count > 0 and not force and not reset:
-        print(f"Database already contains {count} active agents. Skipping seed (use --reset to reseed).")
+        print(f"Database already contains {count} active agents. Skipping agent seed (use --reset to reseed).")
         return
 
     print(f"Seeding {len(INITIAL_AGENTS)} initial Generation-1 teaching agents...")
@@ -75,7 +88,7 @@ def seed_database(force: bool = False, reset: bool = False) -> None:
         )
         print(f"  [+] Created Agent #{agent_id} (Generation 1)")
 
-    print("Initial population successfully seeded!")
+    print("Initial population and teacher account successfully seeded!")
 
 
 if __name__ == "__main__":

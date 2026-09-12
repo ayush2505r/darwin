@@ -78,7 +78,7 @@ def fallback_llm_response(system_prompt: str, user_prompt: str) -> str:
     user_lower = user_prompt.lower()
 
     # 1. Assessment step fallback
-    if "assessor" in sys_lower or "student-level profile" in sys_lower or "profile" in user_lower:
+    if "assessor" in sys_lower or "student-level profile" in sys_lower:
         # Determine likely level from text
         level = "intermediate"
         if any(w in user_lower for w in ["beginner", "novice", "basic", "intro", "scratch", "no experience"]):
@@ -130,31 +130,88 @@ def fallback_llm_response(system_prompt: str, user_prompt: str) -> str:
             f"succinct interactive milestones."
         )
 
-    # 4. Teaching agent fallback (lesson plan)
+    # 4. Teaching agent fallback (Actionable Teacher Classroom Guide)
     # Extract topic if present in user_prompt
-    topic_match = re.search(r"topic:\s*([^\n\r]+)", user_prompt, re.IGNORECASE)
-    topic = topic_match.group(1).strip() if topic_match else "the requested topic"
+    topic_match = re.search(r"topic(?: to teach)?:\s*([^\n\r]+)", user_prompt, re.IGNORECASE)
+    topic = topic_match.group(1).strip() if topic_match else "the topic"
 
-    return f"""### Lesson Plan: {topic}
+    # Identify agent pedagogical style
+    if "socratic" in sys_lower:
+        style_title = "Socratic Inquiry Method"
+        hook_action = (
+            f"**What to Say to Class:** \"Before we define {topic}, let me ask: imagine you encounter a system that seems "
+            f"to follow two conflicting rules at the same time. How would you test which rule applies?\""
+        )
+        core_approach = (
+            "Lead students through a series of 3 guided questions on the board. Do not lecture directly; "
+            "pause after each question and write student hypotheses on the left side of the blackboard."
+        )
+    elif "first-principles" in sys_lower:
+        style_title = "First-Principles & Real-World Intuition"
+        hook_action = (
+            f"**What to Say to Class:** \"Forget the textbook formulas for {topic} for the next 10 minutes. "
+            f"Let's strip away the jargon and look at the simplest physical analogy in everyday life.\""
+        )
+        core_approach = (
+            "Draw a simple mechanical or visual diagram on the board illustrating the fundamental components. "
+            "Connect each component directly to a familiar real-world object before introducing technical vocabulary."
+        )
+    else:
+        style_title = "Pragmatic Scaffolding & Checkpoints"
+        hook_action = (
+            f"**What to Say to Class:** \"Today our goal is to master {topic} in 4 distinct milestones. "
+            f"By the end of this period, everyone will be able to solve a core problem independently.\""
+        )
+        core_approach = (
+            "Present a structured 4-step sequence on the board: Definition -> Mechanism -> Common Error -> Practice. "
+            "Have students write down each milestone checkpoint in their notebooks."
+        )
 
-#### 1. Learning Objectives
-- Understand the core concepts and principles behind {topic}.
-- Connect theoretical intuition to concrete practical applications.
-- Identify and avoid common misconceptions.
+    return f"""### 🧑‍🏫 Teacher's Step-by-Step Classroom Guide: {topic}
+*(Pedagogical Strategy: {style_title})*
 
-#### 2. Concept Overview & Intuition
-Let's demystify {topic} starting from first principles. Rather than jumping into dense formulas, consider how this behaves in everyday systems. At its heart, {topic} represents a balance between fundamental rules and practical dynamics.
+---
 
-#### 3. Step-by-Step Breakdown
-1. **The Groundwork**: Defining the essential elements without unneeded jargon.
-2. **The Mechanism**: How these elements interact dynamically under standard conditions.
-3. **The Application**: Examining a real-world case where {topic} solves a critical problem.
+#### 🎯 Phase 1: Classroom Hook & Intuitive Kickoff (First 5–7 Minutes)
+- **Objective**: Engage curiosity and activate students' existing mental models.
+- {hook_action}
+- **Demonstration / Visual**: Draw a simple 2-part diagram on the board showing the initial state vs. the transformed state. Ask the room: *"What do you notice has changed?"*
 
-#### 4. Common Misconceptions
-- **Pitfall 1**: Confusing introductory definitions with underlying causal mechanisms.
-- **Correction**: Always trace the cause back to core principles before making inferences.
+---
 
-#### 5. Check for Understanding
-- Can you explain {topic} in your own words in two sentences?
-- How would you test this concept in a simple experiment or example?
+#### 💡 Phase 2: Addressing Assessed Student Knowledge Gaps
+- **Targeting Gaps**: Address students' unfamiliarity with formal terminology by rooting definitions in intuitive observations first.
+- **Common Misconception to Dispel**: Students frequently confuse introductory terminology with underlying causal mechanisms.
+- **Teacher Script**: *"A common pitfall is to think that {topic} happens instantly. In reality, it is a progressive dynamic governed by core conservation rules."*
+
+---
+
+#### 📋 Phase 3: Step-by-Step Teaching Script & Blackboard Flow (Core 20 Minutes)
+1. **The Groundwork (5 mins)**:
+   - Write the core definition clearly in the center of the board.
+   - Highlight the 2 essential variables and have students repeat the key terms.
+2. **The Mechanism Walkthrough (10 mins)**:
+   - {core_approach}
+   - Walk through a concrete, worked baseline example step-by-step.
+   - Point out exactly where calculations or logic typically break down.
+3. **Interactive Checkpoint (5 mins)**:
+   - Pause and give students 90 seconds to summarize the mechanism to their neighbor.
+
+---
+
+#### ❓ Phase 4: Formative Comprehension Check (Check for Understanding)
+Ask the class the following targeted diagnostic questions:
+1. **Concept Check**: *"If we modify the initial condition in our example, what will happen to the outcome?"*
+   - *Expected Answer*: Students should identify that the rate or intensity scales proportionally.
+   - *If they struggle*: Direct them back to step 2 on the board diagram.
+2. **Reverse Scenario**: *"Why would an approach without {topic} fail in a real-world scenario?"*
+   - *Expected Answer*: Because it overlooks the underlying constraint.
+
+---
+
+#### 🚀 Phase 5: Differentiated Student Practice & Wrap-Up
+- **For Students Needing Extra Scaffolding**: Provide a guided fill-in-the-blank template of the 3-step mechanism.
+- **For Advanced / Fast Finishers**: Challenge them to predict what happens when extreme edge conditions are introduced.
+- **Closing Takeaway**: Summarize the 1 core rule students must remember before the bell rings.
 """
+

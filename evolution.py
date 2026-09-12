@@ -103,16 +103,17 @@ def record_feedback(
     student_level: str,
     score: int,
     comment: Optional[str] = None,
-    lesson_excerpt: Optional[str] = None
+    lesson_excerpt: Optional[str] = None,
+    teacher_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """Store teacher feedback, generate outcome summary, update agent stats, and check evolution."""
     # 1. Insert into feedback table
     feedback_id = execute_insert(
         """
-        INSERT INTO feedback (agent_id, topic, student_level, score, comment)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO feedback (agent_id, teacher_id, topic, student_level, score, comment)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (agent_id, topic, student_level, score, comment)
+        (agent_id, teacher_id, topic, student_level, score, comment)
     )
 
     # 2. Generate outcome summary via LLM and save to knowledge_pool

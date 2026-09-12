@@ -32,7 +32,10 @@ def get_db_config(include_database: bool = True) -> Dict[str, Any]:
 def get_connection(include_database: bool = True) -> mysql.connector.MySQLConnection:
     """Connection-factory function that always passes use_pure=True to mysql.connector."""
     config = get_db_config(include_database=include_database)
-    return mysql.connector.connect(**config)
+    conn = mysql.connector.connect(**config)
+    if conn.is_connected():
+        print("connected to mysql you can proceed", flush=True)
+    return conn
 
 
 @contextmanager
@@ -85,12 +88,26 @@ def init_db(schema_path: Optional[str] = None) -> None:
 
     with get_db_cursor(commit=True, dictionary=False) as (cursor, conn):
         for stmt in statements:
-            # Skip comments or empty lines
             cleaned_stmt = "\n".join(
                 line for line in stmt.splitlines() if not line.strip().startswith("--")
             ).strip()
             if cleaned_stmt:
                 cursor.execute(cleaned_stmt)
+
+        # Ensure teacher_id column exists on feedback table
+        try:
+            cursor.execute("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'feedback' 
+                  AND COLUMN_NAME = 'teacher_id'
+            """)
+            col_exists = cursor.fetchone()[0]
+            if not col_exists:
+                cursor.execute("ALTER TABLE feedback ADD COLUMN teacher_id INT NULL AFTER agent_id")
+                cursor.execute("ALTER TABLE feedback ADD CONSTRAINT fk_feedback_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE SET NULL")
+        except Exception:
+            pass
 
 
 def execute_query(query: str, params: Optional[Tuple[Any, ...]] = None, commit: bool = False) -> int:
@@ -119,3 +136,37 @@ def fetch_one(query: str, params: Optional[Tuple[Any, ...]] = None) -> Optional[
     with get_db_cursor(commit=False, dictionary=True) as (cursor, conn):
         cursor.execute(query, params or ())
         return cursor.fetchone()
+
+
+# ---------------------------------------------------------------------------
+# Teacher Authentication Helpers
+# ---------------------------------------------------------------------------
+def create_teacher(username: str, password: str, full_name: str) -> int:
+    """Create a new teacher record with hashed password."""
+    from werkzeug.security import generate_password_hash
+    pwd_hash = generate_password_hash(password)
+    return execute_insert(
+        """
+        INSERT INTO teachers (username, password_hash, full_name)
+        VALUES (%s, %s, %s)
+        """,
+        (username.strip().lower(), pwd_hash, full_name.strip())
+    )
+
+
+def verify_teacher(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """Verify teacher credentials and return teacher record if valid."""
+    from werkzeug.security import check_password_hash
+    teacher = fetch_one(
+        "SELECT * FROM teachers WHERE LOWER(username) = LOWER(%s)",
+        (username.strip(),)
+    )
+    if teacher and check_password_hash(teacher["password_hash"], password):
+        return teacher
+    return None
+
+
+def get_teacher_by_id(teacher_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch teacher by ID."""
+    return fetch_one("SELECT teacher_id, username, full_name, created_at FROM teachers WHERE teacher_id = %s", (teacher_id,))
+

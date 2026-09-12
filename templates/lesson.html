@@ -1,42 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Darwin AI - Lesson Plan & Assessment{% endblock %}
+{% block title %}Darwin AI - Multi-Agent Lesson Proposals{% endblock %}
 
 {% block content %}
-<!-- Assessment & Agent Metadata Header -->
+<!-- Assessment Header -->
 <div class="card">
-  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem;">
     <div>
-      <span class="badge badge-level" style="margin-bottom: 0.5rem;">Assessed Level: {{ student_profile.level }}</span>
+      <span class="badge badge-level" style="margin-bottom: 0.5rem;">Assessed Student Level: {{ student_profile.level }}</span>
       <h1 style="font-size: 1.5rem; color: #fff;">{{ topic }}</h1>
     </div>
     <div>
-      <span class="badge badge-active">Active Agent #{{ agent.agent_id }} (Gen {{ agent.generation }})</span>
+      <span class="badge" style="background: #1e3a8a; color: #93c5fd;">
+        {{ agent_plans|length }} Agents Generated Proposals
+      </span>
     </div>
   </div>
 
   <div class="meta-grid">
     <div class="meta-item">
-      <div class="meta-label">Assessed Level</div>
+      <div class="meta-label">Assessed Level & Reasoning</div>
       <div class="meta-val" style="text-transform: capitalize;">{{ student_profile.level }}</div>
       <div class="help-text" style="font-size: 0.8rem; margin-top: 0.25rem;">
         {{ student_profile.reasoning }}
       </div>
     </div>
     <div class="meta-item">
-      <div class="meta-label">Selected Teaching Agent</div>
-      <div class="meta-val">Agent #{{ agent.agent_id }} <span style="font-size: 0.85rem; color: var(--text-muted);">(Gen {{ agent.generation }})</span></div>
-      <div class="help-text" style="font-size: 0.8rem; margin-top: 0.25rem;">
-        Historical Rating: {{ "%.2f"|format(agent.avg_score or 0.0) }}/5.0 ({{ agent.times_used }} uses)
-      </div>
-    </div>
-  </div>
-
-  <!-- Detailed Assessment Profile -->
-  <div style="margin-top: 0.75rem; border-top: 1px solid var(--card-border); padding-top: 0.75rem;">
-    <div style="margin-bottom: 0.5rem;">
-      <strong style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Prior Concepts Recognized:</strong>
-      <div class="tag-list">
+      <div class="meta-label">Prior Concepts Recognized</div>
+      <div class="tag-list" style="margin-top: 0.4rem;">
         {% for concept in student_profile.known_concepts %}
           <span class="tag">✓ {{ concept }}</span>
         {% else %}
@@ -44,90 +35,162 @@
         {% endfor %}
       </div>
     </div>
-    <div>
-      <strong style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Identified Knowledge Gaps:</strong>
-      <div class="tag-list">
+    <div class="meta-item">
+      <div class="meta-label">Target Knowledge Gaps</div>
+      <div class="tag-list" style="margin-top: 0.4rem;">
         {% for gap in student_profile.gaps %}
           <span class="tag" style="border-color: #7f1d1d; color: #fca5a5;">⚠ {{ gap }}</span>
         {% else %}
-          <span class="tag" style="color: var(--text-muted);">Standard curriculum progression</span>
+          <span class="tag" style="color: var(--text-muted);">Standard progression</span>
         {% endfor %}
       </div>
     </div>
   </div>
-
-  {% if collective_memory %}
-  <div style="margin-top: 1rem; background: rgba(59, 7, 100, 0.25); border: 1px solid #581c87; border-radius: 6px; padding: 0.75rem;">
-    <div style="font-size: 0.85rem; font-weight: 600; color: #d8b4fe; margin-bottom: 0.25rem;">
-      🧠 Shared Collective Memory Injected ({{ collective_memory|length }} prior outcomes applied):
-    </div>
-    <ul style="font-size: 0.8rem; color: #cbd5e1; padding-left: 1.25rem;">
-      {% for mem in collective_memory %}
-        <li>
-          <strong>{% if mem.feedback_score >= 4 %}✓ Positive Lesson:{% else %}⚠ Past Pitfall:{% endif %}</strong>
-          {{ mem.outcome_summary }}
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
 </div>
 
-<!-- Generated Lesson Plan -->
-<div class="card">
-  <div class="card-title">
-    <span>📖</span> Generated Lesson Explanation
-  </div>
-  <div class="content-box">
-{{ lesson_plan }}
-  </div>
-</div>
-
-<!-- Teacher Feedback Form -->
+<!-- Multi-Agent Comparison Section -->
 <div class="card" style="border-color: #3b82f6;">
-  <div class="card-title" style="color: var(--primary);">
-    <span>⭐</span> Teacher Feedback & Natural Selection Rating
+  <div class="card-title" style="color: #60a5fa; margin-bottom: 0.75rem;">
+    <span>🤖</span> Compare Teaching Agent Proposals ({{ agent_plans|length }} Active Agents Evaluated)
   </div>
   <p class="help-text" style="margin-bottom: 1rem;">
-    Your feedback directly drives the evolutionary fitness of Agent #{{ agent.agent_id }}.
-    Scores and reflections are stored in collective memory to help future agents improve.
+    Each teaching agent applies a distinct pedagogical strategy. Click below to inspect each agent's practical teaching guide, then rate the agent to drive natural selection:
   </p>
 
-  <form action="{{ url_for('submit_feedback_route') }}" method="POST">
-    <input type="hidden" name="agent_id" value="{{ agent.agent_id }}">
-    <input type="hidden" name="topic" value="{{ topic }}">
-    <input type="hidden" name="student_level" value="{{ student_profile.level }}">
-    <input type="hidden" name="lesson_excerpt" value="{{ lesson_plan[:400] }}">
+  <!-- Agent Tab Switcher -->
+  <div class="agent-tabs">
+    {% for plan in agent_plans %}
+      <button 
+        type="button" 
+        class="tab-btn {% if loop.first %}active{% endif %}" 
+        id="tab-btn-{{ loop.index0 }}"
+        onclick="showAgentTab({{ loop.index0 }})"
+      >
+        <span>🤖 Agent #{{ plan.agent.agent_id }}</span>
+        <span style="font-size: 0.75rem; opacity: 0.8;">(Gen {{ plan.agent.generation }} | ★ {{ "%.1f"|format(plan.agent.avg_score or 0.0) }})</span>
+      </button>
+    {% endfor %}
+  </div>
 
-    <div class="form-group">
-      <label>Rate Lesson Quality (1 = Poor, 5 = Excellent) <span style="color: var(--danger);">*</span></label>
-      <div class="star-rating">
-        <input type="radio" id="star5" name="score" value="5" required /><label for="star5" title="5 stars - Outstanding">★</label>
-        <input type="radio" id="star4" name="score" value="4" /><label for="star4" title="4 stars - Good">★</label>
-        <input type="radio" id="star3" name="score" value="3" /><label for="star3" title="3 stars - Acceptable">★</label>
-        <input type="radio" id="star2" name="score" value="2" /><label for="star2" title="2 stars - Mediocre">★</label>
-        <input type="radio" id="star1" name="score" value="1" /><label for="star1" title="1 star - Poor">★</label>
+  <!-- Agent Panes -->
+  {% for plan in agent_plans %}
+    <div 
+      id="agent-pane-{{ loop.index0 }}" 
+      class="agent-pane" 
+      style="display: {% if loop.first %}block{% else %}none{% endif %};"
+    >
+      <!-- Agent Strategy Card -->
+      <div style="background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 1rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <strong style="color: #60a5fa; font-size: 1rem;">
+            Agent #{{ plan.agent.agent_id }} &mdash; Generation {{ plan.agent.generation }}
+          </strong>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">
+            Used {{ plan.agent.times_used }} times &bull; Rating: 
+            <strong style="color: #fbbf24;">{{ "%.2f"|format(plan.agent.avg_score or 0.0) }}/5.0</strong>
+          </span>
+        </div>
+        <details>
+          <summary class="details-summary">View Agent Strategy Genome Prompt</summary>
+          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #cbd5e1; background: #162032; padding: 0.75rem; border-radius: 4px; border: 1px solid var(--card-border); white-space: pre-wrap;">
+{{ plan.agent.strategy_prompt }}
+          </div>
+        </details>
+      </div>
+
+      <!-- Collective Memory Notice -->
+      {% if plan.collective_memory %}
+      <div style="background: rgba(59, 7, 100, 0.25); border: 1px solid #581c87; border-radius: 6px; padding: 0.75rem; margin-bottom: 1.25rem;">
+        <div style="font-size: 0.85rem; font-weight: 600; color: #d8b4fe; margin-bottom: 0.25rem;">
+          🧠 Shared Collective Memory Injected ({{ plan.collective_memory|length }} past outcomes applied):
+        </div>
+        <ul style="font-size: 0.8rem; color: #cbd5e1; padding-left: 1.25rem;">
+          {% for mem in plan.collective_memory %}
+            <li>
+              <strong>{% if mem.feedback_score >= 4 %}✓ Positive Lesson:{% else %}⚠ Past Pitfall:{% endif %}</strong>
+              {{ mem.outcome_summary }}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Generated Teacher's Step-by-Step Guide -->
+      <div style="margin-bottom: 1.5rem;">
+        <div class="card-title" style="font-size: 1.1rem; color: #fff;">
+          <span>📖</span> Actionable Teacher's Classroom Guide
+        </div>
+        <div class="content-box">
+{{ plan.lesson_plan }}
+        </div>
+      </div>
+
+      <!-- Feedback Form for This Specific Agent -->
+      <div style="background: #162032; border: 1px solid #3b82f6; border-radius: 8px; padding: 1.25rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <h3 style="color: #60a5fa; font-size: 1.05rem;">
+            ⭐ Rate Agent #{{ plan.agent.agent_id }}'s Approach
+          </h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">
+            Feeds natural selection evolution loop
+          </span>
+        </div>
+        <p class="help-text" style="margin-bottom: 1rem;">
+          Did this agent's step-by-step roadmap provide clear, practical guidance for teaching {{ student_profile.level }} students?
+        </p>
+
+        <form action="{{ url_for('submit_feedback_route') }}" method="POST">
+          <input type="hidden" name="agent_id" value="{{ plan.agent.agent_id }}">
+          <input type="hidden" name="topic" value="{{ topic }}">
+          <input type="hidden" name="student_level" value="{{ student_profile.level }}">
+          <input type="hidden" name="lesson_excerpt" value="{{ plan.lesson_plan[:400] }}">
+
+          <div class="form-group">
+            <label>Rate Pedagogical Quality (1 = Poor, 5 = Excellent) <span style="color: var(--danger);">*</span></label>
+            <div class="star-rating">
+              <input type="radio" id="star5-{{ loop.index0 }}" name="score" value="5" required /><label for="star5-{{ loop.index0 }}" title="5 stars - Outstanding">★</label>
+              <input type="radio" id="star4-{{ loop.index0 }}" name="score" value="4" /><label for="star4-{{ loop.index0 }}" title="4 stars - Good">★</label>
+              <input type="radio" id="star3-{{ loop.index0 }}" name="score" value="3" /><label for="star3-{{ loop.index0 }}" title="3 stars - Acceptable">★</label>
+              <input type="radio" id="star2-{{ loop.index0 }}" name="score" value="2" /><label for="star2-{{ loop.index0 }}" title="2 stars - Mediocre">★</label>
+              <input type="radio" id="star1-{{ loop.index0 }}" name="score" value="1" /><label for="star1-{{ loop.index0 }}" title="1 star - Poor">★</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="comment-{{ loop.index0 }}">Teacher Comments / Critique (Optional)</label>
+            <textarea 
+              id="comment-{{ loop.index0 }}" 
+              name="comment" 
+              placeholder="e.g. The opening hook was engaging, but needs more time on the worked example..."
+            ></textarea>
+          </div>
+
+          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="submit" class="btn btn-primary" style="flex: 2;">
+              Submit Rating for Agent #{{ plan.agent.agent_id }}
+            </button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary" style="flex: 1;">
+              New Lesson
+            </a>
+          </div>
+        </form>
       </div>
     </div>
-
-    <div class="form-group">
-      <label for="comment">Pedagogical Feedback / Notes (Optional)</label>
-      <textarea 
-        id="comment" 
-        name="comment" 
-        placeholder="e.g. Great pacing, clear analogy, or skipped foundational steps..."
-      ></textarea>
-      <div class="help-text">Explain why this approach worked or where it fell short.</div>
-    </div>
-
-    <div style="display: flex; gap: 1rem; margin-top: 1.25rem;">
-      <button type="submit" class="btn btn-primary" style="flex: 2;">
-        Submit Feedback & Update Collective Memory
-      </button>
-      <a href="{{ url_for('index') }}" class="btn btn-secondary" style="flex: 1;">
-        Skip & New Lesson
-      </a>
-    </div>
-  </form>
+  {% endfor %}
 </div>
+
+<script>
+function showAgentTab(index) {
+  document.querySelectorAll('.agent-pane').forEach(function(pane, i) {
+    pane.style.display = (i === index) ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(function(btn, i) {
+    if (i === index) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+</script>
 {% endblock %}

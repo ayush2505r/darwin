@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Teacher Login{% endblock %}
+
+{% block content %}
+<div style="max-width: 460px; margin: 2rem auto;">
+  <div class="card">
+    <div class="card-title">
+      <span>🔐</span> Teacher Login
+    </div>
+    <p class="help-text" style="margin-bottom: 1.25rem;">
+      Log in to track your personalized teaching sessions, manage feedback, and view natural selection results.
+    </p>
+
+    <form action="{{ url_for('login_route') }}" method="POST">
+      <div class="form-group">
+        <label for="username">Username <span style="color: var(--danger);">*</span></label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          placeholder="e.g. teacher or your username" 
+          required 
+          autocomplete="username"
+          autofocus
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password <span style="color: var(--danger);">*</span></label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          placeholder="Enter your password" 
+          required 
+          autocomplete="current-password"
+        >
+      </div>
+
+      <div style="margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">
+          Log In
+        </button>
+      </div>
+    </form>
+
+    <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--card-border); font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+      Don't have an account? <a href="{{ url_for('register_route') }}" style="color: var(--primary); text-decoration: none;">Register here</a>
+    </div>
+  </div>
+
+  <div class="card" style="background: rgba(30, 41, 59, 0.4); border-style: dashed;">
+    <div style="font-size: 0.85rem; font-weight: 600; color: #93c5fd; margin-bottom: 0.35rem;">
+      💡 Default Teacher Account:
+    </div>
+    <div style="font-size: 0.8rem; color: #cbd5e1;">
+      Username: <code>teacher</code> &nbsp;|&nbsp; Password: <code>password123</code>
+    </div>
+  </div>
+</div>
+{% endblock %}

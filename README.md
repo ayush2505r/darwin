@@ -6,6 +6,27 @@ All agents share a unified **MySQL database** as collective memory, allowing suc
 
 ---
 
+## Key Features
+
+1. **Teacher Authentication (`/login`, `/register`, `/logout`)**:
+   - Individual teacher accounts with session tracking.
+   - Seeded with a default teacher account: `username: teacher` / `password: password123`.
+2. **At Least 3 Agents Generated Per Lesson**:
+   - For every lesson request, the system selects **at least 3 active teaching agents** from the population.
+   - Each agent generates a distinct pedagogical proposal based on its unique strategy genome and the shared collective memory.
+   - An interactive tab switcher allows the teacher to compare all 3 plans and rate each agent individually (1–5 stars + comments).
+3. **Actionable Step-by-Step Teacher Classroom Guide**:
+   - Rather than generic text, each agent outputs a concrete, 5-phase teaching roadmap that teachers can directly follow in class:
+     - 🎯 **Phase 1: Classroom Hook & Intuitive Kickoff** (First 5–7 mins, exact dialogue to speak and demo to show)
+     - 💡 **Phase 2: Addressing Assessed Student Gaps & Misconceptions** (Targeting student weaknesses identified by the Assessor)
+     - 📋 **Phase 3: Step-by-Step Teaching Script & Blackboard Flow** (Core 20-min lesson breakdown with diagram notes)
+     - ❓ **Phase 4: Formative Comprehension Check** (Diagnostic questions, expected student answers, and corrective hints)
+     - 🚀 **Phase 5: Differentiated Practice & Wrap-Up** (Exercises for struggling vs advanced learners)
+4. **Terminal Connection Notice**:
+   - Whenever MySQL is connected, the message `connected to mysql you can proceed` is automatically printed to the terminal.
+
+---
+
 ## Architecture & Core User Flow
 
 1. **Teacher Submits Lesson Request (`GET /` & `POST /lesson`)**:
@@ -21,17 +42,17 @@ All agents share a unified **MySQL database** as collective memory, allowing suc
        "gaps": ["..."]
      }
      ```
-3. **Agent Selection & Collective Memory Injection**:
-   - An active Teaching Agent is chosen using an explainable weighted selection rule that favors high fitness (`avg_score`) while granting an exploration bonus to newly spawned generation agents.
-   - Relevant lessons learned (past successes and pitfalls) are fetched from the MySQL `knowledge_pool` and injected into the agent's prompt.
-4. **Lesson Generation**:
-   - The selected Teaching Agent produces a comprehensive explanation tailored to the student level and presents it to the teacher.
+3. **3-Agent Selection & Collective Memory Injection**:
+   - At least 3 active Teaching Agents are selected using a weighted selection rule that favors high fitness (`avg_score`) while granting exploration bonuses to newly evolved generation agents.
+   - Relevant lessons learned (past successes and pitfalls) are fetched from the MySQL `knowledge_pool` and injected into each agent's prompt.
+4. **Multi-Agent Lesson Generation**:
+   - All 3 agents produce their respective Teacher Classroom Guides tailored to the assessed student level and present them in tabbed comparison format.
 5. **Teacher Feedback & Evolutionary Loop (`POST /feedback`)**:
-   - The teacher rates the lesson (1–5 stars) and optionally adds comments.
+   - The teacher rates any of the agents (1–5 stars) and optionally adds comments.
    - An LLM generates a concise pedagogical reflection (`outcome_summary`) saved to `knowledge_pool`.
-   - The agent's `avg_score` is recalculated.
+   - The agent's `avg_score` is recalculated and linked to the teacher.
    - Every **N** pieces of feedback, the **Meta-Agent** evaluates the population:
-     - **Retires** bottom $k$ performers (subject to the population floor).
+     - **Retires** bottom $k$ performers (subject to the population floor of 3).
      - **Clones & Mutates** top $k$ performers into next-generation agents with mutated strategies informed by collective memory.
      - Logs events in `evolution_log`.
 6. **Agent Population Dashboard (`GET /agents`)**:
@@ -110,7 +131,7 @@ POPULATION_FLOOR=3
 
 ## Database Initialization & Seeding
 
-Run the seed script to create the database schema and populate the initial Generation-1 population (3 agents with distinct pedagogical strategies):
+Run the seed script to create the database schema, populate the default teacher account, and initialize the 3 foundational Generation-1 agents:
 
 ```bash
 python seed.py
@@ -119,6 +140,11 @@ python seed.py
 To reset the database tables and re-seed from scratch:
 ```bash
 python seed.py --reset
+```
+
+Upon connecting to MySQL, the terminal will print:
+```
+connected to mysql you can proceed
 ```
 
 ---
@@ -131,7 +157,8 @@ python app.py
 ```
 
 Open your browser and navigate to:
-- **Lesson Submission & Feedback**: [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
+- **Teacher Login**: [http://127.0.0.1:5000/login](http://127.0.0.1:5000/login) (Default: `teacher` / `password123`)
+- **Lesson Submission & 3-Agent Comparison**: [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
 - **Agent Population Dashboard**: [http://127.0.0.1:5000/agents](http://127.0.0.1:5000/agents)
 
 ---
@@ -144,12 +171,15 @@ python test_darwin.py
 ```
 
 The test suite validates:
-1. Pure MySQL connectivity (`use_pure=True`).
-2. Seeding of initial agent population.
+1. Pure MySQL connectivity (`use_pure=True`) and terminal notice `connected to mysql you can proceed`.
+2. Seeding of initial agent population (at least 3 active agents maintained).
 3. Media file validation and transcription stubbing.
-4. LangGraph workflow nodes and state transitions.
-5. Feedback recording, LLM outcome summary reflection, and collective memory storage.
-6. Flask routes (`/`, `/lesson`, `/feedback`, `/agents`).
+4. Teacher authentication flow (registration, login, verification, session, logout).
+5. Default teacher account verification.
+6. LangGraph 3-agent generation producing actionable 5-phase Teacher Classroom Guides.
+7. Feedback recording with `teacher_id` and collective memory reflection.
+8. Multi-agent comparison tabs on `/lesson`.
+9. Population dashboard and audit logs on `/agents`.
 
 ---
 
@@ -160,15 +190,6 @@ The evolutionary behavior is governed by four configuration constants:
 | Variable | Default | Purpose |
 |---|---|---|
 | `EVOLUTION_FEEDBACK_THRESHOLD` | `5` | Evolution cycle triggers every $N$ pieces of teacher feedback. |
-| `MIN_AGENT_USES_FOR_EVOLUTION` | `3` | Minimum sample size before an agent is eligible for retirement or reproduction (prevents killing agents on bad luck). |
+| `MIN_AGENT_USES_FOR_EVOLUTION` | `3` | Minimum sample size before an agent is eligible for retirement or reproduction. |
 | `EVOLUTION_K` | `1` | Number of bottom agents to retire and top agents to reproduce per cycle. |
 | `POPULATION_FLOOR` | `3` | Minimum number of active agents guaranteed so the population never collapses. |
-
-### Selection & Mutation Loop:
-1. **Selection at Request Time**:
-   $$\text{weight} = \max(\text{avg\_score}, 1.0) + (1.5 \text{ if times\_used} == 0 \text{ else } 0)$$
-   This rewards high performance while encouraging exploration of newly evolved agents.
-2. **Mutation during Reproduction**:
-   When an agent reproduces, the Meta-Agent prompts the LLM with the parent's `strategy_prompt` alongside recent successes ($\ge 4$ stars) and mistakes ($\le 2$ stars) from the `knowledge_pool`. The resulting mutated prompt is inserted as a child agent with `generation = parent.generation + 1`.
-3. **Audit Trail**:
-   Every evolution event (which agents were retired, which reproduced, parent ID, mutation details) is recorded in `evolution_log`.
