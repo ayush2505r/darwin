@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{{ classroom_session.topic }} - Student Session{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 1.25rem;">
+  <span class="badge badge-level">Student Classroom Session</span>
+  <h1 style="font-size: 1.8rem; margin-top: .6rem;">{{ classroom_session.topic }}</h1>
+  <p class="help-text">Session {{ classroom_session.session_id }} · Level: {{ classroom_session.student_level|capitalize }}</p>
+  <div style="margin-top: 1rem; display: flex; gap: .7rem; flex-wrap: wrap;">
+    <a class="btn btn-secondary" href="{{ url_for('student_notes_pdf', session_id=classroom_session.session_id) }}">⬇ Download Student Notes PDF</a>
+    <a class="btn btn-secondary" href="{{ url_for('student_landing') }}">Join Another Session</a>
+  </div>
+</div>
+
+{% if attempt_result %}
+<div class="card" style="border-color: #34d399; background: linear-gradient(135deg, rgba(6,78,59,.45), rgba(17,27,48,.8));">
+  <div class="card-title" style="color: #6ee7b7;">✅ Understanding Check Submitted</div>
+  <div style="font-size: 2rem; font-family: var(--font-display); font-weight: 700; color: #a7f3d0;">{{ attempt_result.score }} / {{ attempt_result.total }}</div>
+  <p class="help-text">That is {{ attempt_result.percentage }}%. Review the explanations below and ask your teacher about anything unclear.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title"><span>🧠</span> Flashcards</div>
+  <div class="scorecard-grid">
+    {% for card in classroom_session.flashcards %}
+    <details class="scorecard-item" style="cursor: pointer;">
+      <summary style="font-weight: 700; color: #c4b5fd;">{{ card.front }}</summary>
+      <p style="margin-top: .75rem; color: #cbd5e1;">{{ card.back }}</p>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title"><span>📝</span> Understanding Check</div>
+  <p class="help-text" style="margin-bottom: 1rem;">Choose the best answer for each question. Your result helps your teacher see what needs another explanation.</p>
+  <form method="POST" action="{{ url_for('student_session_view', session_id=classroom_session.session_id) }}">
+    <div class="form-group">
+      <label for="student_name">Your name (optional)</label>
+      <input type="text" id="student_name" name="student_name" placeholder="Your first name">
+    </div>
+    {% for question in classroom_session.mcqs %}
+    {% set question_index = loop.index0 %}
+    <div class="scorecard-item" style="margin-bottom: .9rem;">
+      <div style="font-weight: 700; color: #fff; margin-bottom: .6rem;">{{ loop.index }}. {{ question.question }}</div>
+      {% for option in question.options %}
+      <label style="display: flex; align-items: center; gap: .55rem; font-weight: 500; margin: .45rem 0; color: #cbd5e1; cursor: pointer;">
+        <input type="radio" name="answer_{{ question_index }}" value="{{ loop.index0 }}" required style="accent-color: #8b5cf6; width: auto;"> {{ option }}
+      </label>
+      {% endfor %}
+      {% if attempt_result %}<div class="help-text" style="color: #a7f3d0; margin-top: .65rem;">Explanation: {{ question.explanation }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Understanding Check</button>
+  </form>
+</div>
+{% endblock %}

@@ -37,6 +37,7 @@ from pipeline import run_lesson_pipeline
 from evolution import FEEDBACK_THRESHOLD, record_feedback
 from transcription import validate_file
 from resource_search import search_resources_safely
+from classroom_sessions import create_classroom_session, get_classroom_session, record_student_attempt, get_session_attempts, create_notes_pdf
 
 # Load environment configuration
 load_dotenv()
@@ -267,6 +268,14 @@ def generate_lesson_route():
             flash("No active teaching agents found. Please run seed.py to seed the database.", "error")
             return redirect(url_for("index"))
 
+        classroom_session = create_classroom_session(
+            teacher_id=teacher_id,
+            topic=topic,
+            student_level=student_profile.get("level", "intermediate"),
+            lesson_plan=champion_plan.get("lesson_plan", "") if champion_plan else "",
+            student_profile=student_profile,
+        )
+
         return render_template(
             "lesson.html",
             topic=topic,
@@ -278,11 +287,85 @@ def generate_lesson_route():
             resources=resource_search["results"],
             youtube_videos=resource_search.get("videos", []),
             resource_search_error=resource_search["error"],
+            classroom_session=classroom_session,
         )
     except Exception as e:
         logger.exception("Error executing lesson pipeline")
         flash(f"An error occurred while generating the lesson plan: {e}", "error")
         return redirect(url_for("index"))
+
+
+@app.route("/student", methods=["GET", "POST"])
+def student_landing():
+    """Public entry point where a student enters the teacher's session ID."""
+    if request.method == "POST":
+        session_id = request.form.get("session_id", "").strip().upper()
+        if not get_classroom_session(session_id):
+            flash("We could not find that classroom session. Check the ID and try again.", "error")
+            return render_template("student_join.html", session_id=session_id)
+        return redirect(url_for("student_session_view", session_id=session_id))
+    return render_template("student_join.html")
+
+
+@app.route("/student/session/<session_id>", methods=["GET", "POST"])
+def student_session_view(session_id: str):
+    """Show stored flashcards/MCQs and record one student understanding check."""
+    classroom_session = get_classroom_session(session_id)
+    if not classroom_session:
+        flash("We could not find that classroom session. Check the ID and try again.", "error")
+        return redirect(url_for("student_landing"))
+
+    attempt_result = None
+    if request.method == "POST":
+        try:
+            answers = [int(request.form.get(f"answer_{index}", "-1")) for index in range(len(classroom_session.get("mcqs", [])))]
+            attempt_result = record_student_attempt(
+                session_id=session_id,
+                student_name=request.form.get("student_name", "").strip(),
+                answers=answers,
+            )
+        except (TypeError, ValueError) as exc:
+            flash(str(exc), "error")
+
+    return render_template(
+        "student_session.html",
+        classroom_session=classroom_session,
+        attempt_result=attempt_result,
+    )
+
+
+@app.route("/student/session/<session_id>/notes.pdf")
+def student_notes_pdf(session_id: str):
+    """Download the stored AI-generated student notes as a PDF."""
+    classroom_session = get_classroom_session(session_id)
+    if not classroom_session:
+        flash("We could not find that classroom session.", "error")
+        return redirect(url_for("student_landing"))
+    try:
+        pdf_path = create_notes_pdf(classroom_session)
+        from flask import send_file
+        return send_file(pdf_path, as_attachment=True, download_name=f"{session_id.upper()}-student-notes.pdf")
+    except ImportError:
+        flash("PDF notes require the reportlab package. Install requirements.txt and try again.", "error")
+        return redirect(url_for("student_session_view", session_id=session_id))
+    except Exception as exc:
+        logger.exception("Could not create student notes PDF")
+        flash(f"Could not create the notes PDF: {exc}", "error")
+        return redirect(url_for("student_session_view", session_id=session_id))
+
+
+@app.route("/teacher/session/<session_id>/results")
+@login_required
+def teacher_session_results(session_id: str):
+    """Show the teacher aggregate and individual student understanding checks."""
+    classroom_session = get_classroom_session(session_id)
+    if not classroom_session or classroom_session.get("teacher_id") != session.get("teacher_id"):
+        flash("That classroom session is not available for your account.", "error")
+        return redirect(url_for("index"))
+    attempts = get_session_attempts(session_id)
+    total = len(attempts)
+    average = round(sum((row["score"] / row["total_questions"] * 100) for row in attempts if row["total_questions"]) / total) if total else 0
+    return render_template("session_results.html", classroom_session=classroom_session, attempts=attempts, average=average)
 
 
 @app.route("/feedback", methods=["GET", "POST"])

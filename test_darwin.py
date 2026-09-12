@@ -205,6 +205,19 @@ class DarwinTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Find Teaching Resources", response.data)
 
+    def test_12_student_session_flow(self):
+        """Stored classroom materials and student scoring are available end-to-end."""
+        session_row = db.fetch_one("SELECT session_id FROM classroom_sessions ORDER BY created_at DESC LIMIT 1")
+        self.assertIsNotNone(session_row)
+        session_id = session_row["session_id"]
+
+        landing = self.client.get("/student")
+        self.assertEqual(landing.status_code, 200)
+        student_view = self.client.get(f"/student/session/{session_id}")
+        self.assertEqual(student_view.status_code, 200)
+        self.assertIn(b"Flashcards", student_view.data)
+        self.assertIn(b"Understanding Check", student_view.data)
+
 
 if __name__ == "__main__":
     unittest.main()

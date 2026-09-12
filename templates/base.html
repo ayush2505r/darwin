@@ -14,6 +14,7 @@
       </a>
       <nav class="nav-links">
         <a href="{{ url_for('index') }}" class="{% if request.endpoint in ['index', 'generate_lesson_route'] %}active{% endif %}">New Lesson</a>
+        <a href="{{ url_for('student_landing') }}" class="{% if request.endpoint in ['student_landing', 'student_session_view'] %}active{% endif %}">Student Access</a>
         <a href="{{ url_for('agents_dashboard') }}" class="{% if request.endpoint == 'agents_dashboard' %}active{% endif %}">Agent Population</a>
         {% if session.get('teacher_id') %}
           <span style="color: #6ee7b7; font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; padding-left: 0.5rem; border-left: 1px solid var(--card-border);">

@@ -86,3 +86,27 @@ CREATE TABLE IF NOT EXISTS soup_training_runs (
     UNIQUE KEY uq_soup_feedback_count (feedback_count),
     INDEX idx_soup_training_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS classroom_sessions (
+    session_id VARCHAR(32) PRIMARY KEY,
+    teacher_id INT NOT NULL,
+    topic VARCHAR(255) NOT NULL,
+    student_level VARCHAR(50) NOT NULL,
+    materials_json LONGTEXT NOT NULL,
+    notes_markdown LONGTEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_classroom_sessions_teacher (teacher_id),
+    CONSTRAINT fk_classroom_sessions_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_attempts (
+    attempt_id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(32) NOT NULL,
+    student_name VARCHAR(120) NOT NULL,
+    answers_json TEXT NOT NULL,
+    score INT NOT NULL,
+    total_questions INT NOT NULL,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_attempts_session (session_id),
+    CONSTRAINT fk_student_attempts_session FOREIGN KEY (session_id) REFERENCES classroom_sessions(session_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

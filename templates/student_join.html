@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Join Classroom Session{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 560px; margin: 3rem auto; text-align: center;">
+  <div class="card-title" style="justify-content: center;"><span>🎓</span> Join Your Classroom</div>
+  <p class="help-text" style="margin-bottom: 1.5rem;">Enter the session ID shared by your teacher to open your flashcards, student notes, and understanding check.</p>
+  <form method="POST" action="{{ url_for('student_landing') }}">
+    <div class="form-group">
+      <label for="session_id">Classroom Session ID</label>
+      <input type="text" id="session_id" name="session_id" value="{{ session_id or '' }}" placeholder="e.g. DRW-A1B2C3D4" required autocomplete="off" style="text-align: center; text-transform: uppercase; letter-spacing: .14em; font-weight: 700;">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Open Classroom Session</button>
+  </form>
+</div>
+{% endblock %}
