@@ -87,6 +87,62 @@ def search_educational_resources(
     return results[:max(1, min(max_results, 12))]
 
 
+def search_youtube_content(
+    topic: str,
+    student_level: str = "",
+    student_context: str = "",
+    max_results: int = 6,
+) -> List[Dict[str, str]]:
+    """Find YouTube teaching videos through DuckDuckGo's video search."""
+    cleaned_topic = " ".join((topic or "").split())[:MAX_QUERY_LENGTH]
+    if not cleaned_topic:
+        return []
+    level = " ".join((student_level or "").split())[:40]
+    context = " ".join((student_context or "").split())[:400]
+    query = f"{cleaned_topic} {level} educational lesson tutorial".strip()
+    if context:
+        query += f" student difficulties {context}"
+
+    DDGS = _load_ddgs()
+    try:
+        raw_results = DDGS(timeout=10).videos(
+            query, region="wt-wt", safesearch="moderate",
+            backend="duckduckgo", max_results=max_results * 3,
+        )
+    except TypeError:
+        raw_results = DDGS(timeout=10).videos(
+            query, region="wt-wt", safesearch="moderate", max_results=max_results * 3,
+        )
+
+    videos: List[Dict[str, str]] = []
+    seen_urls = set()
+    topic_words = {word for word in cleaned_topic.lower().split() if len(word) > 2}
+    for item in raw_results or []:
+        url = str(item.get("content") or item.get("url") or item.get("href") or "").strip()
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or "youtube.com" not in parsed.netloc.lower():
+            continue
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        title = str(item.get("title") or "YouTube teaching video").strip()
+        description = str(item.get("description") or item.get("body") or "").strip()
+        searchable = f"{title} {description}".lower()
+        score = sum(2 for word in topic_words if word in searchable)
+        score += sum(2 for word in ("lesson", "tutorial", "explained", "classroom", "education") if word in searchable)
+        videos.append({
+            "title": title[:240],
+            "url": url,
+            "body": description[:500],
+            "duration": str(item.get("duration") or ""),
+            "source": "youtube.com",
+            "score": str(score),
+        })
+
+    videos.sort(key=lambda item: int(item["score"]), reverse=True)
+    return videos[:max(1, min(max_results, 10))]
+
+
 def search_resources_safely(
     topic: str,
     student_level: str = "",
@@ -94,12 +150,17 @@ def search_resources_safely(
 ) -> Dict[str, Any]:
     """Return a UI-safe result object without allowing search errors to break the app."""
     try:
-        return {
-            "results": search_educational_resources(topic, student_level, student_context),
-            "error": None,
-        }
+        resources = search_educational_resources(topic, student_level, student_context)
     except ImportError:
-        return {"results": [], "error": "Resource search is not installed. Install the ddgs package from requirements.txt."}
+        return {"results": [], "videos": [], "error": "Resource search is not installed. Install the ddgs package from requirements.txt."}
     except Exception as exc:
         logger.warning("DuckDuckGo resource search failed: %s", exc)
-        return {"results": [], "error": "DuckDuckGo could not complete the search right now. Please try again."}
+        return {"results": [], "videos": [], "error": "DuckDuckGo could not complete the search right now. Please try again."}
+
+    try:
+        videos = search_youtube_content(topic, student_level, student_context)
+    except Exception as exc:
+        logger.warning("DuckDuckGo YouTube search failed: %s", exc)
+        videos = []
+
+    return {"results": resources, "videos": videos, "error": None}

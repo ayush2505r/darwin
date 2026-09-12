@@ -98,6 +98,20 @@
   {% else %}
     <p class="help-text">No matching web resources were found for this topic. Try making the topic more specific.</p>
   {% endif %}
+
+  {% if youtube_videos %}
+    <div style="border-top: 1px solid var(--card-border); margin-top: 1rem; padding-top: 1rem;">
+      <div style="font-size: 0.95rem; font-weight: 700; color: #fca5a5; margin-bottom: 0.45rem;">▶ Suggested YouTube Content</div>
+      <p class="help-text" style="margin-bottom: 0.7rem;">Videos selected for explaining this topic and the student difficulties you described.</p>
+      {% for video in youtube_videos %}
+        <div style="padding: 0.7rem 0; border-top: 1px solid var(--card-border);">
+          <a href="{{ video.url }}" target="_blank" rel="noopener noreferrer" style="color: #fca5a5; font-weight: 700; text-decoration: none;">▶ {{ video.title }}</a>
+          {% if video.duration %}<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem;">{{ video.duration }}</span>{% endif %}
+          {% if video.body %}<div style="font-size: 0.84rem; color: #cbd5e1; line-height: 1.5; margin-top: 0.2rem;">{{ video.body }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 </div>
 
 <!-- Champion Banner -->

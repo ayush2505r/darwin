@@ -31,6 +31,19 @@
 <div class="alert alert-error" style="max-width: 900px; margin: 1rem auto;">{{ search_error }}</div>
 {% endif %}
 
+{% if videos %}
+<div style="max-width: 900px; margin: 1.5rem auto 0.75rem;">
+  <h2 style="font-size: 1.2rem; color: #fca5a5; margin: 0;">▶ Suggested YouTube Content</h2>
+</div>
+{% for video in videos %}
+<div class="card" style="max-width: 900px; margin: 0 auto 0.9rem;">
+  <h3 style="font-size: 1.05rem; margin-bottom: 0.35rem;"><a href="{{ video.url }}" target="_blank" rel="noopener noreferrer" style="color: #fca5a5; text-decoration: none;">▶ {{ video.title }}</a></h3>
+  {% if video.duration %}<div style="font-size: 0.75rem; color: var(--text-muted);">{{ video.duration }}</div>{% endif %}
+  {% if video.body %}<p style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.55; margin: 0.4rem 0 0;">{{ video.body }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
 {% if topic and not search_error %}
 <div style="max-width: 900px; margin: 1.5rem auto 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
   <h2 style="font-size: 1.2rem; color: #fff; margin: 0;">Resources for “{{ topic }}”</h2>

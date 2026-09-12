@@ -186,13 +186,14 @@ def resources_route():
     topic = request.args.get("topic", "").strip()
     student_level = request.args.get("student_level", "").strip()
     student_context = request.args.get("student_context", "").strip()
-    search = search_resources_safely(topic, student_level, student_context) if topic else {"results": [], "error": None}
+    search = search_resources_safely(topic, student_level, student_context) if topic else {"results": [], "videos": [], "error": None}
     return render_template(
         "resources.html",
         topic=topic,
         student_level=student_level,
         student_context=student_context,
         results=search["results"],
+        videos=search.get("videos", []),
         search_error=search["error"],
     )
 
@@ -275,6 +276,7 @@ def generate_lesson_route():
             evolution_triggered=result.get("evolution_triggered", False),
             evolution_details=result.get("evolution_details"),
             resources=resource_search["results"],
+            youtube_videos=resource_search.get("videos", []),
             resource_search_error=resource_search["error"],
         )
     except Exception as e:
