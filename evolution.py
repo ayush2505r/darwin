@@ -182,22 +182,44 @@ def record_feedback(
     score: int,
     comment: Optional[str] = None,
     lesson_excerpt: Optional[str] = None,
-    teacher_id: Optional[int] = None
+    teacher_id: Optional[int] = None,
+    response_quality_score: Optional[int] = None,
+    student_improvement_score: Optional[int] = None,
+    student_improvement: Optional[str] = None,
+    what_worked: Optional[str] = None,
+    what_to_improve: Optional[str] = None,
+    follow_up_action: Optional[str] = None
 ) -> Dict[str, Any]:
     """Store human teacher feedback and check evolution."""
+    detailed_comment = comment
+    if what_worked or what_to_improve or follow_up_action:
+        detailed_comment = "\n".join(filter(None, [
+            f"Overall teacher review: {comment}" if comment else None,
+            f"What worked: {what_worked}" if what_worked else None,
+            f"What to improve: {what_to_improve}" if what_to_improve else None,
+            f"Next action: {follow_up_action}" if follow_up_action else None,
+        ]))
+
     feedback_id = execute_insert(
         """
-        INSERT INTO feedback (agent_id, teacher_id, topic, student_level, score, comment)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO feedback (
+            agent_id, teacher_id, topic, student_level, score, comment,
+            response_quality_score, student_improvement_score, student_improvement,
+            what_worked, what_to_improve, follow_up_action
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
-        (agent_id, teacher_id, topic, student_level, score, comment)
+        (
+            agent_id, teacher_id, topic, student_level, score, detailed_comment,
+            response_quality_score, student_improvement_score, student_improvement,
+            what_worked, what_to_improve, follow_up_action,
+        )
     )
 
     outcome_summary = generate_outcome_summary(
         topic=topic,
         student_level=student_level,
         score=score,
-        comment=comment,
+        comment=detailed_comment,
         lesson_excerpt=lesson_excerpt
     )
 
@@ -209,7 +231,7 @@ def record_feedback(
         INSERT INTO knowledge_pool (agent_id, topic, student_level, feedback_score, feedback_comment, outcome_summary)
         VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (agent_id, topic, student_level, score, comment, outcome_summary)
+        (agent_id, topic, student_level, score, detailed_comment, outcome_summary)
     )
 
     stats = fetch_one(
@@ -248,7 +270,9 @@ def record_feedback(
         "total_feedback_count": total_feedback,
         "evolution_triggered": evolution_result is not None,
         "evolution_details": evolution_result,
-        "soup_training": soup_training_result
+        "soup_training": soup_training_result,
+        "response_quality_score": response_quality_score,
+        "student_improvement_score": student_improvement_score
     }
 
 

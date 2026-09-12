@@ -202,6 +202,14 @@
       🧬 View Agent Lifecycle Ledger
     </a>
   </div>
+  {% if champion_plan %}
+  <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--card-border); text-align: center;">
+    <p class="help-text" style="margin-bottom: 0.65rem;">After teaching this lesson, record what students actually understood.</p>
+    <a href="{{ url_for('feedback_route', agent_id=champion_plan.agent.agent_id, topic=topic, student_level=student_profile.level) }}" class="btn btn-secondary">
+      📝 Add Teacher Review of This Response
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 <script>

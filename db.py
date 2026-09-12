@@ -140,6 +140,27 @@ def init_db(schema_path: Optional[str] = None) -> None:
             except Exception:
                 pass
 
+        feedback_cols = [
+            ("response_quality_score", "TINYINT NULL"),
+            ("student_improvement_score", "TINYINT NULL"),
+            ("student_improvement", "TEXT NULL"),
+            ("what_worked", "TEXT NULL"),
+            ("what_to_improve", "TEXT NULL"),
+            ("follow_up_action", "TEXT NULL"),
+        ]
+        for col_name, col_type in feedback_cols:
+            try:
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'feedback'
+                      AND COLUMN_NAME = '{col_name}'
+                """)
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(f"ALTER TABLE feedback ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+
 
 def execute_query(query: str, params: Optional[Tuple[Any, ...]] = None, commit: bool = False) -> int:
     """Execute an INSERT, UPDATE, or DELETE query and return affected rows."""
@@ -200,4 +221,3 @@ def verify_teacher(username: str, password: str) -> Optional[Dict[str, Any]]:
 def get_teacher_by_id(teacher_id: int) -> Optional[Dict[str, Any]]:
     """Fetch teacher by ID."""
     return fetch_one("SELECT teacher_id, username, full_name, created_at FROM teachers WHERE teacher_id = %s", (teacher_id,))
-

@@ -34,7 +34,7 @@ import markdown as md_module
 
 from db import fetch_all, fetch_one, create_teacher, verify_teacher, init_db
 from pipeline import run_lesson_pipeline
-from evolution import FEEDBACK_THRESHOLD
+from evolution import FEEDBACK_THRESHOLD, record_feedback
 from transcription import validate_file
 
 # Load environment configuration
@@ -251,6 +251,66 @@ def generate_lesson_route():
         logger.exception("Error executing lesson pipeline")
         flash(f"An error occurred while generating the lesson plan: {e}", "error")
         return redirect(url_for("index"))
+
+
+@app.route("/feedback", methods=["GET", "POST"])
+@login_required
+def feedback_route():
+    """Collect structured teacher feedback about a generated lesson response."""
+    if request.method == "GET":
+        return render_template(
+            "feedback.html",
+            agent_id=request.args.get("agent_id", ""),
+            topic=request.args.get("topic", ""),
+            student_level=request.args.get("student_level", "intermediate"),
+        )
+
+    topic = request.form.get("topic", "").strip()
+    student_level = request.form.get("student_level", "intermediate").strip()
+    comment = request.form.get("comment", "").strip()
+    student_improvement = request.form.get("student_improvement", "").strip()
+    what_worked = request.form.get("what_worked", "").strip()
+    what_to_improve = request.form.get("what_to_improve", "").strip()
+    follow_up_action = request.form.get("follow_up_action", "").strip()
+
+    try:
+        agent_id = int(request.form.get("agent_id", ""))
+        score = int(request.form.get("score", ""))
+        response_quality_score = int(request.form.get("response_quality_score", ""))
+        student_improvement_score = int(request.form.get("student_improvement_score", ""))
+    except (TypeError, ValueError):
+        flash("Please complete all three ratings before submitting.", "error")
+        return render_template("feedback.html", **request.form)
+
+    ratings = [score, response_quality_score, student_improvement_score]
+    if not topic or not comment or not student_improvement or not what_to_improve:
+        flash("Please describe the response, student improvement, and what should improve.", "error")
+        return render_template("feedback.html", **request.form)
+    if any(value < 1 or value > 5 for value in ratings):
+        flash("Ratings must be between 1 and 5.", "error")
+        return render_template("feedback.html", **request.form)
+
+    try:
+        result = record_feedback(
+            agent_id=agent_id,
+            topic=topic,
+            student_level=student_level,
+            score=score,
+            comment=comment,
+            teacher_id=session.get("teacher_id"),
+            response_quality_score=response_quality_score,
+            student_improvement_score=student_improvement_score,
+            student_improvement=student_improvement,
+            what_worked=what_worked,
+            what_to_improve=what_to_improve,
+            follow_up_action=follow_up_action,
+        )
+        flash("Your classroom review was saved and added to the agents' learning memory.", "success")
+        return render_template("feedback.html", submitted=True, result=result, topic=topic)
+    except Exception as exc:
+        logger.exception("Could not save teacher feedback")
+        flash(f"Could not save your review: {exc}", "error")
+        return render_template("feedback.html", **request.form)
 
 
 @app.route("/agents", methods=["GET"])

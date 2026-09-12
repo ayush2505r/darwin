@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Teacher Review{% endblock %}
+
+{% block content %}
+{% if submitted %}
+<div class="card" style="max-width: 760px; margin: 2rem auto; border-color: #10b981;">
+  <div class="card-title" style="color: #6ee7b7;"><span>✅</span> Teacher Review Saved</div>
+  <p class="help-text" style="color: #d1fae5;">
+    Your review for <strong>{{ topic }}</strong> is now part of the shared learning memory. Future agents can use it to improve clarity, pacing, and student outcomes.
+  </p>
+  <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap;">
+    <a href="{{ url_for('index') }}" class="btn btn-primary">Create Another Lesson</a>
+    <a href="{{ url_for('agents_dashboard') }}" class="btn btn-secondary">View Agent Population</a>
+  </div>
+</div>
+{% else %}
+<div class="card" style="max-width: 820px; margin: 1.5rem auto;">
+  <div class="card-title"><span>📝</span> Review the Classroom Response</div>
+  <p class="help-text" style="margin-bottom: 1.5rem;">
+    Your review helps Darwin understand what actually worked with students. Please rate the generated response and describe the evidence you saw in class. Specific examples are much more useful than a short score.
+  </p>
+
+  <form action="{{ url_for('feedback_route') }}" method="POST">
+    <input type="hidden" name="agent_id" value="{{ agent_id or request.form.get('agent_id', '') }}">
+
+    <div class="form-group">
+      <label for="topic">Lesson Topic <span style="color: var(--danger);">*</span></label>
+      <input type="text" id="topic" name="topic" value="{{ topic or request.form.get('topic', '') }}" required>
+    </div>
+
+    <div class="form-group">
+      <label for="student_level">Student Level</label>
+      <select id="student_level" name="student_level">
+        {% set selected_level = student_level or request.form.get('student_level', 'intermediate') %}
+        {% for level in ['beginner', 'intermediate', 'advanced'] %}
+          <option value="{{ level }}" {% if selected_level == level %}selected{% endif %}>{{ level|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="meta-grid" style="margin-bottom: 1.25rem;">
+      <div class="form-group">
+        <label for="score">Overall usefulness <span style="color: var(--danger);">*</span></label>
+        <select id="score" name="score" required>
+          <option value="">Choose 1–5</option>
+          {% for value in range(1, 6) %}<option value="{{ value }}" {% if request.form.get('score')|int == value %}selected{% endif %}>{{ value }} — {{ ['Not useful', 'Needs work', 'Adequate', 'Very useful', 'Excellent'][value-1] }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="response_quality_score">Response quality <span style="color: var(--danger);">*</span></label>
+        <select id="response_quality_score" name="response_quality_score" required>
+          <option value="">Choose 1–5</option>
+          {% for value in range(1, 6) %}<option value="{{ value }}" {% if request.form.get('response_quality_score')|int == value %}selected{% endif %}>{{ value }} / 5</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="student_improvement_score">Student improvement <span style="color: var(--danger);">*</span></label>
+        <select id="student_improvement_score" name="student_improvement_score" required>
+          <option value="">Choose 1–5</option>
+          {% for value in range(1, 6) %}<option value="{{ value }}" {% if request.form.get('student_improvement_score')|int == value %}selected{% endif %}>{{ value }} / 5</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="comment">How was the response in practice? <span style="color: var(--danger);">*</span></label>
+      <textarea id="comment" name="comment" required placeholder="Example: The analogy made the idea easier, but Phase 3 moved too quickly for the beginner group.">{{ request.form.get('comment', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="student_improvement">How did students improve? <span style="color: var(--danger);">*</span></label>
+      <textarea id="student_improvement" name="student_improvement" required placeholder="Describe observable evidence: questions answered, errors reduced, independent work, quiz/classwork change, or remaining confusion.">{{ request.form.get('student_improvement', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="what_worked">What worked especially well?</label>
+      <textarea id="what_worked" name="what_worked" placeholder="Mention the strongest explanation, example, activity, pacing choice, or question.">{{ request.form.get('what_worked', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="what_to_improve">What should the agent improve? <span style="color: var(--danger);">*</span></label>
+      <textarea id="what_to_improve" name="what_to_improve" required placeholder="Give one or two concrete changes for the next response.">{{ request.form.get('what_to_improve', '') }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="follow_up_action">What will you try next time?</label>
+      <textarea id="follow_up_action" name="follow_up_action" placeholder="Optional: add a checkpoint, change the example, slow down, group students differently, etc.">{{ request.form.get('follow_up_action', '') }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem;">Save Teacher Review</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
