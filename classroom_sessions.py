@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 from html import escape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -127,50 +128,137 @@ def get_session_attempts(session_id: str) -> List[Dict[str, Any]]:
     )
 
 
+def build_notes_html(session: Dict[str, Any]) -> str:
+    """Build the complete student pack as a styled, self-contained HTML document."""
+    notes = str(session.get("notes_markdown") or "")
+    note_blocks = []
+    for raw_line in notes.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("###"):
+            note_blocks.append(f"<h3>{escape(line[3:].strip())}</h3>")
+        elif line.startswith("##"):
+            note_blocks.append(f"<h2>{escape(line[2:].strip())}</h2>")
+        elif line.startswith("#"):
+            note_blocks.append(f"<h1>{escape(line[1:].strip())}</h1>")
+        elif line.startswith("-") or line.startswith("*"):
+            note_blocks.append(f"<li>{escape(line[1:].strip())}</li>")
+        else:
+            note_blocks.append(f"<p>{escape(line)}</p>")
+
+    flashcards = "".join(
+        f'<article class="card"><div class="card-label">FLASHCARD {index}</div>'
+        f'<h3>{escape(str(card.get("front", "")))}</h3>'
+        f'<p class="answer"><strong>Answer:</strong> {escape(str(card.get("back", "")))}</p></article>'
+        for index, card in enumerate(session.get("flashcards", []), start=1)
+    )
+    questions = "".join(
+        f'<article class="question"><div class="card-label">QUESTION {index}</div>'
+        f'<h3>{escape(str(question.get("question", "")))}</h3>'
+        f'<ol type="A">{"".join(f"<li>{escape(str(option))}</li>" for option in question.get("options", []))}</ol>'
+        f'<p class="hint"><strong>Why it matters:</strong> {escape(str(question.get("explanation", "")))}</p></article>'
+        for index, question in enumerate(session.get("mcqs", []), start=1)
+    )
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><title>{escape(str(session.get("topic", "Lesson")))}</title>
+<style>
+@page {{ size: Letter; margin: 0.65in 0.65in 0.7in; }}
+* {{ box-sizing: border-box; }} body {{ font-family: Arial, sans-serif; color:#172033; line-height:1.45; margin:0; }}
+.hero {{ background:#312e81; color:white; padding:24px 28px; border-radius:16px; margin-bottom:22px; }}
+.eyebrow {{ color:#c4b5fd; text-transform:uppercase; letter-spacing:2px; font-size:9px; font-weight:bold; }}
+h1 {{ color:#312e81; font-size:21px; margin:18px 0 8px; }} .hero h1 {{ color:white; font-size:27px; margin:7px 0; }}
+h2 {{ color:#0f766e; font-size:17px; border-bottom:2px solid #99f6e4; padding-bottom:5px; margin-top:21px; }}
+h3 {{ color:#25315b; font-size:12px; margin:5px 0 7px; }} p {{ font-size:10.5px; margin:6px 0 9px; }}
+.meta {{ display:flex; gap:22px; color:#e0e7ff; font-size:10px; }} .section {{ margin-top:18px; }}
+.card, .question {{ background:#f5f3ff; border:1px solid #ddd6fe; border-left:5px solid #8b5cf6; padding:11px 14px; margin:10px 0; border-radius:8px; }}
+.question {{ background:#ecfeff; border-color:#a5f3fc; border-left-color:#0f766e; }} .card-label {{ color:#7c3aed; font-size:8px; font-weight:bold; letter-spacing:1px; }}
+.answer {{ background:white; padding:7px 9px; border-radius:5px; }} .hint {{ color:#475569; font-size:9px; }} li {{ font-size:10px; margin:3px 0; }}
+.footer {{ color:#64748b; font-size:8px; border-top:1px solid #cbd5e1; margin-top:25px; padding-top:7px; }}
+</style></head><body>
+<header class="hero"><div class="eyebrow">Darwin classroom study pack</div><h1>{escape(str(session.get("topic", "Lesson")))}</h1>
+<div class="meta"><span>Session {escape(str(session.get("session_id", "")))}</span><span>Level: {escape(str(session.get("student_level", "")))}</span></div></header>
+<main><section class="section"><h2>Lesson notes</h2>{''.join(note_blocks)}</section>
+<section class="section"><h2>Review flashcards</h2>{flashcards or '<p>No flashcards were generated for this lesson.</p>'}</section>
+<section class="section"><h2>Practice check</h2><p>Try each question before reading the explanation.</p>{questions or '<p>No practice questions were generated for this lesson.</p>'}</section></main>
+<div class="footer">Generated for this classroom session. Use the practice check to explain your thinking, not just to choose an answer.</div>
+</body></html>'''
+
+
+class _NotesHTMLParser(HTMLParser):
+    """Small HTML-to-reportlab adapter for the generated notes document."""
+
+    def __init__(self):
+        super().__init__()
+        self.blocks = []
+        self._tag = None
+        self._text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {"h1", "h2", "h3", "p", "li"}:
+            self._tag, self._text = tag, []
+
+    def handle_data(self, data):
+        if self._tag:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == self._tag:
+            text = " ".join("".join(self._text).split())
+            if text:
+                self.blocks.append((tag, text))
+            self._tag, self._text = None, []
+
+
+def _html_blocks(html: str):
+    parser = _NotesHTMLParser()
+    parser.feed(html)
+    return parser.blocks
+
+
 def create_notes_pdf(session: Dict[str, Any]) -> Path:
-    """Create or reuse a stable PDF of the stored notes."""
+    """Render the complete generated HTML study pack into a student PDF."""
     output_dir = Path(os.path.dirname(os.path.abspath(__file__))) / "output" / "pdf"
     output_dir.mkdir(parents=True, exist_ok=True)
+    html_dir = Path(os.path.dirname(os.path.abspath(__file__))) / "output" / "html"
+    html_dir.mkdir(parents=True, exist_ok=True)
+    html_path = html_dir / f"session_{session['session_id']}_notes.html"
+    html_path.write_text(build_notes_html(session), encoding="utf-8")
     output_path = output_dir / f"session_{session['session_id']}_notes.pdf"
-    if output_path.exists():
-        return output_path
 
     try:
         from reportlab.lib.pagesizes import LETTER
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import inch
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     except ImportError:
-        logger.warning("ReportLab is unavailable; creating a basic compatible PDF fallback.")
-        _create_basic_pdf(output_path, session)
+        logger.warning("ReportLab is unavailable; converting the generated HTML with the styled fallback.")
+        _create_basic_pdf(output_path, html_path.read_text(encoding="utf-8"), session)
         return output_path
 
     styles = getSampleStyleSheet()
-    title = ParagraphStyle("SessionTitle", parent=styles["Title"], textColor="#4338ca", spaceAfter=16)
-    heading = ParagraphStyle("SessionHeading", parent=styles["Heading2"], textColor="#0f766e", spaceBefore=12, spaceAfter=6)
-    body = ParagraphStyle("SessionBody", parent=styles["BodyText"], leading=15, spaceAfter=7)
-    story = [Paragraph(escape(session["topic"]), title), Paragraph(f"Student study notes · Session {escape(session['session_id'])}", body)]
-    for line in str(session.get("notes_markdown") or "").splitlines():
-        clean = line.strip()
-        if not clean:
-            story.append(Spacer(1, 6))
-        elif clean.startswith("#"):
-            story.append(Paragraph(escape(clean.lstrip("# ")), heading))
-        else:
-            story.append(Paragraph(escape(clean.lstrip("- ")), body))
+    title = ParagraphStyle("SessionTitle", parent=styles["Title"], textColor="#312e81", fontSize=25, leading=29, spaceAfter=8)
+    h1 = ParagraphStyle("SessionH1", parent=styles["Heading1"], textColor="#312e81", fontSize=18, spaceBefore=16, spaceAfter=7)
+    h2 = ParagraphStyle("SessionH2", parent=styles["Heading2"], textColor="#0f766e", fontSize=14, spaceBefore=14, spaceAfter=6)
+    h3 = ParagraphStyle("SessionH3", parent=styles["Heading3"], textColor="#25315b", fontSize=10.5, leading=13, spaceBefore=4, spaceAfter=4)
+    body = ParagraphStyle("SessionBody", parent=styles["BodyText"], fontSize=9.5, leading=13, spaceAfter=6)
+    small = ParagraphStyle("SessionSmall", parent=body, fontSize=8.5, textColor="#475569")
+    story = [Paragraph(escape(str(session.get("topic", "Lesson"))), title), Paragraph(f"Student study notes - Session {escape(str(session['session_id']))} - Level: {escape(str(session.get('student_level', '')))}", small), Spacer(1, 10)]
+    for tag, text in _html_blocks(html_path.read_text(encoding="utf-8")):
+        style = {"h1": h1, "h2": h2, "h3": h3, "p": body, "li": body}[tag]
+        prefix = "• " if tag == "li" else ""
+        story.append(Paragraph(escape(prefix + text), style))
     doc = SimpleDocTemplate(str(output_path), pagesize=LETTER, rightMargin=.7 * inch, leftMargin=.7 * inch, topMargin=.65 * inch, bottomMargin=.65 * inch)
     doc.build(story)
     return output_path
 
 
-def _create_basic_pdf(output_path: Path, session: Dict[str, Any]) -> None:
-    """Dependency-free fallback so PDF download still works offline."""
-    lines = [
-        session["topic"],
-        f"Student study notes - Session {session['session_id']}",
-        "",
-    ] + [line.lstrip("#- ") for line in str(session.get("notes_markdown") or "").splitlines()]
-    pages = [lines[index:index + 42] for index in range(0, len(lines), 42)] or [[session["topic"]]]
+def _create_basic_pdf(output_path: Path, html: str, session: Dict[str, Any]) -> None:
+    """Dependency-free fallback that converts visible HTML blocks into a styled PDF."""
+    blocks = _html_blocks(html)
+    page_count = max(1, (len(blocks) + 29) // 30)
+    page_capacity = max(1, (len(blocks) + page_count - 1) // page_count)
+    pages = [blocks[index:index + page_capacity] for index in range(0, len(blocks), page_capacity)] or [("h1", session["topic"])]
 
     objects: List[bytes] = []
     objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
@@ -180,11 +268,17 @@ def _create_basic_pdf(output_path: Path, session: Dict[str, Any]) -> None:
         page_object = 3 + index * 2
         stream_object = page_object + 1
         objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 {3 + len(pages) * 2} 0 R >> >> /Contents {stream_object} 0 R >>".encode())
-        commands = ["BT", "/F1 16 Tf", "50 750 Td"]
-        for line_index, line in enumerate(page_lines):
+        commands = ["BT", "50 750 Td"]
+        for line_index, (tag, line) in enumerate(page_lines):
+            size = {"h1": 18, "h2": 14, "h3": 11, "p": 10, "li": 10}.get(tag, 10)
+            commands.append(f"/F1 {size} Tf")
+            if tag in {"h1", "h2"}:
+                commands.extend(["0.19 0.18 0.51 rg", "0 -3 Td", "0.19 0.18 0.51 rg"])
+            else:
+                commands.append("0.09 0.13 0.20 rg")
             safe_line = line.encode("latin-1", "replace").decode("latin-1").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")[:105]
             if line_index:
-                commands.append("0 -17 Td")
+                commands.append(f"0 -{24 if tag in {'h1', 'h2'} else 17} Td")
             commands.append(f"({safe_line}) Tj")
         commands.append("ET")
         stream = "\n".join(commands).encode("latin-1")
