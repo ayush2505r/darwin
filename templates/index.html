@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Create Lesson Request{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">
+    <span>📝</span> Submit a Lesson Request
+  </div>
+  <p class="help-text" style="margin-bottom: 1.5rem;">
+    Provide a topic and optional student background context (audio/video recording or written notes).
+    Our Educational Assessor evaluates student knowledge, selects an active Teaching Agent from the evolved population,
+    and generates a tailored lesson plan.
+  </p>
+
+  <form action="{{ url_for('generate_lesson_route') }}" method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="topic">Lesson Topic <span style="color: var(--danger);">*</span></label>
+      <input 
+        type="text" 
+        id="topic" 
+        name="topic" 
+        placeholder="e.g. Quantum Superposition, Recursion in Python, Plate Tectonics..." 
+        required 
+        autocomplete="off"
+      >
+      <div class="help-text">Enter the core subject or concept you plan to teach.</div>
+    </div>
+
+    <div class="form-group">
+      <label for="context_text">Student Context & Notes (Optional)</label>
+      <textarea 
+        id="context_text" 
+        name="context_text" 
+        placeholder="Describe what your students already understand, where they struggle, or paste classroom observations..."
+      ></textarea>
+      <div class="help-text">Written observations regarding student background or previous lesson questions.</div>
+    </div>
+
+    <div class="form-group">
+      <label for="media_file">Upload Classroom Media / Notes (Optional)</label>
+      <input 
+        type="file" 
+        id="media_file" 
+        name="media_file" 
+        accept=".txt,.md,.mp3,.wav,.m4a,.ogg,.mp4,.mov,.webm,.avi"
+      >
+      <div class="help-text">
+        Supported formats: Text (.txt, .md), Audio (.mp3, .wav, .m4a), Video (.mp4, .mov, .webm). Max 16MB.
+      </div>
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.85rem;">
+        🚀 Generate Adaptive Lesson Plan
+      </button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="background: rgba(30, 41, 59, 0.5);">
+  <div class="card-title" style="font-size: 1rem; color: var(--text-muted);">
+    <span>🧬</span> How Natural Selection Works in Darwin
+  </div>
+  <p class="help-text" style="color: #cbd5e1; font-size: 0.9rem;">
+    Every active teaching agent possesses a distinct strategy "genome". Agents share a <strong>MySQL collective memory</strong> of past successes and mistakes. When you rate lesson plans (1–5 stars), the Meta-Agent periodically evolves the population: low-performing agents are retired, while high-performing agents reproduce with mutated prompts informed by lessons learned.
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Feedback Recorded{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title" style="color: var(--success);">
+    <span>✓</span> Feedback Successfully Recorded
+  </div>
+  <p style="color: #cbd5e1; margin-bottom: 1.25rem;">
+    Thank you! Your feedback has been logged, the agent's historical rating has been updated,
+    and a pedagogical reflection has been added to the collective memory.
+  </p>
+
+  <div class="meta-grid">
+    <div class="meta-item">
+      <div class="meta-label">Teaching Agent</div>
+      <div class="meta-val">Agent #{{ agent_id }}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Your Rating</div>
+      <div class="meta-val" style="color: #fbbf24;">{{ score }} / 5 ★</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Updated Agent Avg Score</div>
+      <div class="meta-val">{{ "%.2f"|format(result.agent_avg_score) }} / 5.0</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Total Feedback Count</div>
+      <div class="meta-val">{{ result.total_feedback_count }}</div>
+    </div>
+  </div>
+
+  <div style="background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 1rem; margin-top: 1rem;">
+    <div style="font-size: 0.85rem; font-weight: 600; color: #93c5fd; margin-bottom: 0.25rem;">
+      🧠 Learned Outcome Added to Collective Memory:
+    </div>
+    <p style="font-size: 0.9rem; color: #e2e8f0;">
+      "{{ result.outcome_summary }}"
+    </p>
+  </div>
+</div>
+
+{% if result.evolution_triggered and result.evolution_details %}
+<div class="card" style="border-color: #10b981; background: rgba(6, 78, 59, 0.2);">
+  <div class="card-title" style="color: #34d399;">
+    <span>🧬</span> Natural Selection Evolution Triggered!
+  </div>
+  <p style="font-size: 0.9rem; color: #a7f3d0; margin-bottom: 1rem;">
+    The feedback threshold was reached ({{ result.total_feedback_count }} reviews logged). The Meta-Agent evaluated population fitness:
+  </p>
+
+  {% if result.evolution_details.retired %}
+    <div style="margin-bottom: 0.75rem;">
+      <strong style="color: #fca5a5; font-size: 0.85rem; text-transform: uppercase;">Agents Retired:</strong>
+      <ul style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.25rem; padding-left: 1.25rem;">
+        {% for r in result.evolution_details.retired %}
+          <li>Agent #{{ r.agent_id }} (Gen {{ r.generation }}) — {{ r.reason }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if result.evolution_details.reproduced %}
+    <div style="margin-bottom: 0.75rem;">
+      <strong style="color: #6ee7b7; font-size: 0.85rem; text-transform: uppercase;">Agents Mutated & Cloned:</strong>
+      <ul style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.25rem; padding-left: 1.25rem;">
+        {% for rep in result.evolution_details.reproduced %}
+          <li>
+            Parent #{{ rep.parent_id }} (Avg Score: {{ "%.2f"|format(rep.parent_avg_score) }}) spawned 
+            <strong>New Agent #{{ rep.new_agent_id }} (Generation {{ rep.generation }})</strong>!
+            <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem;">
+              Mutation strategy preview: <em>"{{ rep.mutated_prompt_snippet }}"</em>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if result.evolution_details.notes %}
+    <div style="font-size: 0.85rem; color: #94a3b8; font-style: italic;">
+      Note: {{ result.evolution_details.notes }}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div style="display: flex; gap: 1rem;">
+  <a href="{{ url_for('index') }}" class="btn btn-primary" style="flex: 1;">
+    ➕ Generate Another Lesson
+  </a>
+  <a href="{{ url_for('agents_dashboard') }}" class="btn btn-secondary" style="flex: 1;">
+    👥 View Agent Population Dashboard
+  </a>
+</div>
+{% endblock %}

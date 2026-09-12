@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Darwin AI - Agent Population Dashboard{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+    <div class="card-title" style="margin-bottom: 0;">
+      <span>🧬</span> Teaching Agent Population
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.45rem 0.85rem;">
+      ➕ New Lesson
+    </a>
+  </div>
+  <p class="help-text" style="margin-bottom: 1.5rem;">
+    Track the genetic lineage, status, and fitness of all teaching agents.
+    High-rated agents reproduce mutated offspring, while consistently low-rated agents are retired.
+  </p>
+
+  <div class="meta-grid" style="margin-bottom: 1.5rem;">
+    <div class="meta-item">
+      <div class="meta-label">Active Agents</div>
+      <div class="meta-val" style="color: #6ee7b7;">{{ active_count }}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Retired Agents</div>
+      <div class="meta-val" style="color: #cbd5e1;">{{ retired_count }}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Total Population Size</div>
+      <div class="meta-val">{{ agents|length }}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Max Generation Reached</div>
+      <div class="meta-val">{{ max_generation }}</div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Gen</th>
+          <th>Parent</th>
+          <th>Status</th>
+          <th>Times Used</th>
+          <th>Avg Fitness</th>
+          <th>Strategy Prompt</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in agents %}
+        <tr>
+          <td><strong>#{{ a.agent_id }}</strong></td>
+          <td>Gen {{ a.generation }}</td>
+          <td>
+            {% if a.parent_id %}
+              <span style="color: var(--text-muted);">#{{ a.parent_id }}</span>
+            {% else %}
+              <span style="color: #64748b;">Origin (None)</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if a.status == 'active' %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-retired">Retired</span>
+            {% endif %}
+          </td>
+          <td>{{ a.times_used }}</td>
+          <td>
+            <strong style="color: {% if a.avg_score >= 4.0 %}#34d399{% elif a.avg_score >= 2.5 %}#fbbf24{% else %}#f87171{% endif %};">
+              {{ "%.2f"|format(a.avg_score or 0.0) }}
+            </strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">/ 5.0</span>
+          </td>
+          <td>
+            <details>
+              <summary class="details-summary">View Strategy Genome</summary>
+              <div style="margin-top: 0.5rem; font-size: 0.8rem; background: #0f172a; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--card-border); white-space: pre-wrap; max-width: 350px;">
+{{ a.strategy_prompt }}
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+            No teaching agents found. Run <code>python seed.py</code> to initialize the population.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Evolution Audit Log -->
+<div class="card">
+  <div class="card-title">
+    <span>📜</span> Natural Selection Evolution Log
+  </div>
+  <p class="help-text" style="margin-bottom: 1rem;">
+    Audit history of genetic selection events, retirements, and mutations.
+  </p>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Log ID</th>
+          <th>Event Type</th>
+          <th>Details</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>#{{ log.log_id }}</td>
+          <td>
+            <span class="tag" style="text-transform: uppercase;">{{ log.event_type }}</span>
+          </td>
+          <td style="font-size: 0.85rem;">
+            {% if log.parsed_details %}
+              {% if log.parsed_details.retired %}
+                <div style="color: #fca5a5;">
+                  Retired: 
+                  {% for r in log.parsed_details.retired %}
+                    Agent #{{ r.agent_id }} (Gen {{ r.generation }})
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if log.parsed_details.reproduced %}
+                <div style="color: #6ee7b7;">
+                  Reproduced: 
+                  {% for rep in log.parsed_details.reproduced %}
+                    Parent #{{ rep.parent_id }} → Child Agent #{{ rep.new_agent_id }} (Gen {{ rep.generation }})
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if log.parsed_details.notes %}
+                <div style="color: #94a3b8; font-style: italic;">{{ log.parsed_details.notes }}</div>
+              {% endif %}
+            {% else %}
+              {{ log.details }}
+            {% endif %}
+          </td>
+          <td style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">
+            {{ log.created_at }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            No evolution cycles recorded yet. Evolution triggers automatically every {{ feedback_threshold }} feedback submissions.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
