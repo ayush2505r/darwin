@@ -6,7 +6,7 @@
   <title>{% block title %}Darwin AI - Evolving Teaching Assistant{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="app-shell page-{{ request.endpoint|replace('_', '-') if request.endpoint else 'default' }}">
   <header>
     <div class="navbar">
       <a href="{{ url_for('index') }}" class="nav-brand">
