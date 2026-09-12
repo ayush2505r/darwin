@@ -35,6 +35,7 @@ class LessonState(TypedDict):
     context_text: Optional[str]
     media_path: Optional[str]
     original_filename: Optional[str]
+    youtube_url: Optional[str]
     teacher_id: Optional[int]
     teacher_name: Optional[str]
     transcribed_text: str
@@ -57,13 +58,15 @@ def transcribe_node(state: LessonState) -> Dict[str, Any]:
     """Extract text from uploaded notes or audio/video recording."""
     media_path = state.get("media_path")
     original_filename = state.get("original_filename")
+    youtube_url = state.get("youtube_url")
     context_text = state.get("context_text")
 
     try:
         extracted = extract_or_transcribe(
             file_path=media_path,
             original_filename=original_filename,
-            raw_text=context_text
+            raw_text=context_text,
+            youtube_url=youtube_url
         )
         return {"transcribed_text": extracted}
     except Exception as e:
@@ -101,7 +104,7 @@ def assess_student_node(state: LessonState) -> Dict[str, Any]:
     else:
         user_prompt += "No student background provided. Infer an introductory baseline for this topic."
 
-    raw_response = call_llm(system_prompt, user_prompt, temperature=0.2)
+    raw_response = call_llm(system_prompt, user_prompt, temperature=0.2, max_tokens_hint="assess")
 
     cleaned = raw_response.strip()
     if cleaned.startswith("```"):
@@ -231,6 +234,10 @@ def generate_lessons_node(state: LessonState) -> Dict[str, Any]:
     profile = state.get("student_profile", {})
     teacher_name = state.get("teacher_name") or "the classroom teacher"
     teacher_id = state.get("teacher_id") or 0
+    reference_material = (state.get("transcribed_text") or "").strip()
+    # Keep the direct source reference bounded so adding a video never causes
+    # three agents to spend their entire context window repeating a transcript.
+    reference_excerpt = reference_material[:6000]
     memory_rows = fetch_collective_memory(topic, limit=4)
 
     memory_section = ""
@@ -281,10 +288,11 @@ def generate_lessons_node(state: LessonState) -> Dict[str, Any]:
             f"- Reasoning: {profile.get('reasoning', 'N/A')}\n"
             f"- Known Concepts: {', '.join(profile.get('known_concepts', [])) or 'None specified'}\n"
             f"- Knowledge Gaps: {', '.join(profile.get('gaps', [])) or 'None specified'}\n\n"
-            "Generate the comprehensive, step-by-step Teacher Classroom Guide."
+            + (f"Reference material from the teacher's notes/video:\n{reference_excerpt}\n\n" if reference_excerpt else "")
+            + "Generate the comprehensive, step-by-step Teacher Classroom Guide."
         )
 
-        lesson_plan = format_lesson_plan(call_llm(system_prompt, user_prompt, temperature=temperature), topic)
+        lesson_plan = format_lesson_plan(call_llm(system_prompt, user_prompt, temperature=temperature, max_tokens_hint="teach"), topic)
 
         try:
             execute_query(
@@ -402,6 +410,7 @@ def run_lesson_pipeline(
     context_text: Optional[str] = None,
     media_path: Optional[str] = None,
     original_filename: Optional[str] = None,
+    youtube_url: Optional[str] = None,
     teacher_id: Optional[int] = None,
     teacher_name: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -411,6 +420,7 @@ def run_lesson_pipeline(
         "context_text": context_text,
         "media_path": media_path,
         "original_filename": original_filename,
+        "youtube_url": youtube_url,
         "teacher_id": teacher_id,
         "teacher_name": teacher_name,
         "transcribed_text": "",

@@ -8,6 +8,8 @@ the rest of the pipeline.
 
 import os
 import logging
+import re
+from urllib.parse import parse_qs, urlparse
 from typing import Optional, Tuple
 from dotenv import load_dotenv
 
@@ -21,6 +23,56 @@ ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".avi", ".mkv"}
 ALLOWED_EXTENSIONS = ALLOWED_TEXT_EXTENSIONS | ALLOWED_AUDIO_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
 
 MAX_FILE_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB
+
+
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    """Return a YouTube video id for supported watch, short, or embed URLs."""
+    if not url or not url.strip():
+        return None
+    try:
+        parsed = urlparse(url.strip())
+        host = parsed.netloc.lower().split(":")[0]
+        if host in {"youtu.be", "www.youtu.be"}:
+            video_id = parsed.path.strip("/").split("/")[0]
+        elif host in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}:
+            if parsed.path == "/watch":
+                video_id = parse_qs(parsed.query).get("v", [""])[0]
+            elif parsed.path.startswith("/shorts/") or parsed.path.startswith("/embed/"):
+                video_id = parsed.path.split("/")[2]
+            else:
+                video_id = ""
+        else:
+            return None
+        return video_id if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id or "") else None
+    except Exception:
+        return None
+
+
+def fetch_youtube_transcript(url: str) -> str:
+    """Fetch a public video's captions without downloading the video itself."""
+    video_id = extract_youtube_video_id(url)
+    if not video_id:
+        raise ValueError("Please enter a valid YouTube watch, youtu.be, shorts, or embed link.")
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        api = YouTubeTranscriptApi()
+        if hasattr(api, "fetch"):
+            transcript = api.fetch(video_id)
+            snippets = getattr(transcript, "snippets", transcript)
+            texts = []
+            for item in snippets:
+                text = getattr(item, "text", None)
+                if text is None and isinstance(item, dict):
+                    text = item.get("text", "")
+                texts.append(str(text or ""))
+            return " ".join(texts).strip()
+        # Compatibility with older youtube-transcript-api releases.
+        rows = YouTubeTranscriptApi.get_transcript(video_id)
+        return " ".join(row.get("text", "") for row in rows).strip()
+    except ImportError as exc:
+        raise RuntimeError("YouTube reference support is not installed. Install youtube-transcript-api.") from exc
+    except Exception as exc:
+        raise RuntimeError(f"Could not retrieve captions for this YouTube video: {exc}") from exc
 
 
 def validate_file(filename: str, file_size: Optional[int] = None) -> Tuple[bool, Optional[str]]:
@@ -46,7 +98,8 @@ def validate_file(filename: str, file_size: Optional[int] = None) -> Tuple[bool,
 def extract_or_transcribe(
     file_path: Optional[str],
     original_filename: Optional[str] = None,
-    raw_text: Optional[str] = None
+    raw_text: Optional[str] = None,
+    youtube_url: Optional[str] = None
 ) -> str:
     """Extract text from text files/notes or transcribe audio/video.
     
@@ -57,6 +110,12 @@ def extract_or_transcribe(
     # 1. Direct text notes
     if raw_text and raw_text.strip():
         extracted_parts.append(raw_text.strip())
+
+    if youtube_url and youtube_url.strip():
+        transcript = fetch_youtube_transcript(youtube_url)
+        if not transcript:
+            raise RuntimeError("This YouTube video has no readable captions.")
+        extracted_parts.append(f"[YouTube Reference Transcript ({youtube_url.strip()})]:\n{transcript}")
 
     # 2. File handling
     if file_path and os.path.exists(file_path):

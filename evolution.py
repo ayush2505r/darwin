@@ -70,7 +70,7 @@ def meta_agent_evaluate_plan(
         "Perform your autonomous pedagogical evaluation."
     )
 
-    raw_response = call_llm(system_prompt, user_prompt, temperature=0.2)
+    raw_response = call_llm(system_prompt, user_prompt, temperature=0.2, max_tokens_hint="meta_evaluate")
 
     cleaned = raw_response.strip()
     if cleaned.startswith("```"):
@@ -267,7 +267,7 @@ def generate_outcome_summary(
     if lesson_excerpt:
         user_prompt += f"Lesson Snippet: {lesson_excerpt[:400]}...\n"
 
-    outcome = call_llm(system_prompt, user_prompt, temperature=0.3)
+    outcome = call_llm(system_prompt, user_prompt, temperature=0.3, max_tokens_hint="outcome_summary")
     return outcome.strip()
 
 

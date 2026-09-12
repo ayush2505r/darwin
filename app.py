@@ -188,6 +188,12 @@ def generate_lesson_route():
         return redirect(url_for("index"))
 
     context_text = request.form.get("context_text", "").strip() or None
+    youtube_url = request.form.get("youtube_url", "").strip() or None
+    if youtube_url:
+        from transcription import extract_youtube_video_id
+        if not extract_youtube_video_id(youtube_url):
+            flash("Please enter a valid YouTube video link.", "error")
+            return redirect(url_for("index"))
     media_path = None
     original_filename = None
 
@@ -219,6 +225,7 @@ def generate_lesson_route():
             context_text=context_text,
             media_path=media_path,
             original_filename=original_filename,
+            youtube_url=youtube_url,
             teacher_id=teacher_id,
             teacher_name=teacher_name
         )
