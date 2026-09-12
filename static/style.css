@@ -123,6 +123,7 @@ label {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="file"],
 textarea,
 select {
@@ -138,6 +139,7 @@ select {
 }
 
 input[type="text"]:focus,
+input[type="password"]:focus,
 textarea:focus,
 select:focus {
   outline: none;
@@ -395,4 +397,229 @@ tr:hover td {
   color: #fff;
   border-color: var(--primary);
 }
+
+/* Rendered Educational Lesson Guide (Readable & Elegant) */
+.lesson-guide-rendered {
+  background: #0b1120;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 1.75rem 2rem;
+  color: #e2e8f0;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.lesson-guide-rendered h3 {
+  font-size: 1.4rem;
+  color: #60a5fa;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.lesson-guide-rendered h4 {
+  font-size: 1.15rem;
+  color: #93c5fd;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lesson-guide-rendered hr {
+  border: none;
+  border-top: 1px solid rgba(51, 65, 85, 0.7);
+  margin: 1.5rem 0;
+}
+
+.lesson-guide-rendered p {
+  margin-bottom: 1rem;
+}
+
+.lesson-guide-rendered ul,
+.lesson-guide-rendered ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.lesson-guide-rendered li {
+  margin-bottom: 0.4rem;
+}
+
+.lesson-guide-rendered strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.lesson-guide-rendered em {
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+.lesson-guide-rendered blockquote {
+  border-left: 4px solid var(--primary);
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.75rem 1.25rem;
+  margin: 1rem 0;
+  border-radius: 0 6px 6px 0;
+  color: #bfdbfe;
+}
+
+/* Champion Banner & Scorecard */
+.champion-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.4) 100%);
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.champion-badge {
+  background: #10b981;
+  color: #064e3b;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.meta-scorecard {
+  background: #162032;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.scorecard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.scorecard-item {
+  background: #0f172a;
+  padding: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  font-size: 0.88rem;
+}
+
+/* Action Button Bar */
+.action-btn-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Lifecycle Badges & Cards */
+.badge-promoted {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+.lifecycle-card {
+  background: #162032;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.lifecycle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lifecycle-alert-danger {
+  background: rgba(127, 29, 29, 0.25);
+  border: 1px solid #7f1d1d;
+  color: #fca5a5;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.lifecycle-alert-success {
+  background: rgba(6, 78, 59, 0.25);
+  border: 1px solid #064e3b;
+  color: #6ee7b7;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.lifecycle-alert-neutral {
+  background: rgba(30, 58, 138, 0.2);
+  border: 1px solid #1e3a8a;
+  color: #bfdbfe;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.lifecycle-alert-header {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lifecycle-field-label {
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.lifecycle-card-active {
+  border-left: 3px solid #10b981;
+}
+
+.lifecycle-card-retired {
+  border-left: 3px solid #ef4444;
+  opacity: 0.95;
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media print {
+  header, .agent-tabs, .btn, .champion-banner button, .nav-links {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #111;
+  }
+  .lesson-guide-rendered {
+    background: #fff;
+    color: #111;
+    border: none;
+    max-height: none;
+  }
+}
+
 

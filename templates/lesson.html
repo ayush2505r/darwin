@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}Darwin AI - Multi-Agent Lesson Proposals{% endblock %}
+{% block title %}Darwin AI - Teacher Classroom Guide ({{ topic }}){% endblock %}
 
 {% block content %}
 <!-- Assessment Header -->
-<div class="card">
+<div class="card" style="margin-bottom: 1.25rem;">
   <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem;">
     <div>
       <span class="badge badge-level" style="margin-bottom: 0.5rem;">Assessed Student Level: {{ student_profile.level }}</span>
-      <h1 style="font-size: 1.5rem; color: #fff;">{{ topic }}</h1>
+      <h1 style="font-size: 1.6rem; color: #fff;">{{ topic }}</h1>
     </div>
     <div>
-      <span class="badge" style="background: #1e3a8a; color: #93c5fd;">
-        {{ agent_plans|length }} Agents Generated Proposals
+      <span class="badge" style="background: #1e3a8a; color: #93c5fd; font-size: 0.85rem;">
+        🤖 3 Agents Evaluated Autonomously
       </span>
     </div>
   </div>
 
   <div class="meta-grid">
     <div class="meta-item">
-      <div class="meta-label">Assessed Level & Reasoning</div>
+      <div class="meta-label">Diagnostic Assessment</div>
       <div class="meta-val" style="text-transform: capitalize;">{{ student_profile.level }}</div>
       <div class="help-text" style="font-size: 0.8rem; margin-top: 0.25rem;">
         {{ student_profile.reasoning }}
@@ -48,16 +48,71 @@
   </div>
 </div>
 
-<!-- Multi-Agent Comparison Section -->
-<div class="card" style="border-color: #3b82f6;">
-  <div class="card-title" style="color: #60a5fa; margin-bottom: 0.75rem;">
-    <span>🤖</span> Compare Teaching Agent Proposals ({{ agent_plans|length }} Active Agents Evaluated)
+<!-- Evolution Alert if Natural Selection Triggered -->
+{% if evolution_triggered and evolution_details %}
+<div class="card" style="border-color: #10b981; background: rgba(6, 78, 59, 0.25); margin-bottom: 1.25rem;">
+  <div class="card-title" style="color: #34d399; font-size: 1.1rem; margin-bottom: 0.5rem;">
+    <span>🧬</span> Natural Selection Evolution Triggered by Meta-Agent!
   </div>
-  <p class="help-text" style="margin-bottom: 1rem;">
-    Each teaching agent applies a distinct pedagogical strategy. Click below to inspect each agent's practical teaching guide, then rate the agent to drive natural selection:
+  <p style="font-size: 0.88rem; color: #a7f3d0; margin-bottom: 0.5rem;">
+    The Meta-Agent reached the evaluation threshold and executed a natural selection cycle:
   </p>
+  {% if evolution_details.retired %}
+    <div style="font-size: 0.85rem; color: #fca5a5;">
+      <strong>Destroyed/Retired:</strong>
+      {% for r in evolution_details.retired %}
+        Agent #{{ r.agent_id }} (Gen {{ r.generation }}) &mdash; {{ r.reason }}
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if evolution_details.reproduced %}
+    <div style="font-size: 0.85rem; color: #6ee7b7; margin-top: 0.25rem;">
+      <strong>Promoted & Cloned:</strong>
+      {% for rep in evolution_details.reproduced %}
+        Parent #{{ rep.parent_id }} spawned New Offspring Agent #{{ rep.new_agent_id }} (Gen {{ rep.generation }})!
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}
 
-  <!-- Agent Tab Switcher -->
+<!-- Champion Banner -->
+{% if champion_plan %}
+<div class="champion-banner">
+  <div>
+    <span class="champion-badge">🏆 Meta-Agent Champion Plan</span>
+    <h2 style="font-size: 1.25rem; color: #fff; margin-top: 0.4rem;">
+      Recommended: Agent #{{ champion_plan.agent.agent_id }} (Generation {{ champion_plan.agent.generation }})
+    </h2>
+    <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.2rem;">
+      Rated highest fitness by Meta-Agent: 
+      <strong style="color: #fbbf24;">★ {{ champion_plan.evaluation.score }}/5.0</strong> &bull; 
+      Ready for direct classroom instruction.
+    </div>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <button onclick="copyGuide('guide-content-0')" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem;">
+      📋 Copy Guide
+    </button>
+    <button onclick="window.print()" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.5rem 0.85rem;">
+      🖨️ Print
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<!-- Multi-Agent Proposals Container -->
+<div class="card" style="border-color: #3b82f6;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+    <div class="card-title" style="color: #60a5fa; margin-bottom: 0;">
+      <span>📖</span> Teacher's Step-by-Step Classroom Guide
+    </div>
+    <span style="font-size: 0.82rem; color: var(--text-muted);">
+      Meta-Agent autonomously evaluated all {{ agent_plans|length }} active proposals
+    </span>
+  </div>
+
+  <!-- Agent Switcher Tabs -->
   <div class="agent-tabs">
     {% for plan in agent_plans %}
       <button 
@@ -66,8 +121,9 @@
         id="tab-btn-{{ loop.index0 }}"
         onclick="showAgentTab({{ loop.index0 }})"
       >
-        <span>🤖 Agent #{{ plan.agent.agent_id }}</span>
-        <span style="font-size: 0.75rem; opacity: 0.8;">(Gen {{ plan.agent.generation }} | ★ {{ "%.1f"|format(plan.agent.avg_score or 0.0) }})</span>
+        {% if loop.first %}<span>🏆</span>{% else %}<span>🤖</span>{% endif %}
+        <span>Agent #{{ plan.agent.agent_id }} (Gen {{ plan.agent.generation }})</span>
+        <span style="font-size: 0.75rem; color: #fbbf24; font-weight: 700;">★ {{ plan.evaluation.score }}</span>
       </button>
     {% endfor %}
   </div>
@@ -79,104 +135,73 @@
       class="agent-pane" 
       style="display: {% if loop.first %}block{% else %}none{% endif %};"
     >
-      <!-- Agent Strategy Card -->
-      <div style="background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 1rem; margin-bottom: 1.25rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
-          <strong style="color: #60a5fa; font-size: 1rem;">
-            Agent #{{ plan.agent.agent_id }} &mdash; Generation {{ plan.agent.generation }}
+      <!-- Meta-Agent Autonomous Scorecard -->
+      <div class="meta-scorecard">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <strong style="color: #93c5fd; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>🤖</span> Meta-Agent Autonomous Audit Scorecard:
           </strong>
-          <span style="font-size: 0.85rem; color: var(--text-muted);">
-            Used {{ plan.agent.times_used }} times &bull; Rating: 
-            <strong style="color: #fbbf24;">{{ "%.2f"|format(plan.agent.avg_score or 0.0) }}/5.0</strong>
+          <span style="font-size: 0.95rem; font-weight: 700; color: #fbbf24;">
+            Overall Fitness: {{ plan.evaluation.score }} / 5.0 ★
           </span>
         </div>
-        <details>
-          <summary class="details-summary">View Agent Strategy Genome Prompt</summary>
-          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #cbd5e1; background: #162032; padding: 0.75rem; border-radius: 4px; border: 1px solid var(--card-border); white-space: pre-wrap;">
-{{ plan.agent.strategy_prompt }}
-          </div>
-        </details>
-      </div>
 
-      <!-- Collective Memory Notice -->
-      {% if plan.collective_memory %}
-      <div style="background: rgba(59, 7, 100, 0.25); border: 1px solid #581c87; border-radius: 6px; padding: 0.75rem; margin-bottom: 1.25rem;">
-        <div style="font-size: 0.85rem; font-weight: 600; color: #d8b4fe; margin-bottom: 0.25rem;">
-          🧠 Shared Collective Memory Injected ({{ plan.collective_memory|length }} past outcomes applied):
-        </div>
-        <ul style="font-size: 0.8rem; color: #cbd5e1; padding-left: 1.25rem;">
-          {% for mem in plan.collective_memory %}
-            <li>
-              <strong>{% if mem.feedback_score >= 4 %}✓ Positive Lesson:{% else %}⚠ Past Pitfall:{% endif %}</strong>
-              {{ mem.outcome_summary }}
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-
-      <!-- Generated Teacher's Step-by-Step Guide -->
-      <div style="margin-bottom: 1.5rem;">
-        <div class="card-title" style="font-size: 1.1rem; color: #fff;">
-          <span>📖</span> Actionable Teacher's Classroom Guide
-        </div>
-        <div class="content-box">
-{{ plan.lesson_plan }}
-        </div>
-      </div>
-
-      <!-- Feedback Form for This Specific Agent -->
-      <div style="background: #162032; border: 1px solid #3b82f6; border-radius: 8px; padding: 1.25rem;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
-          <h3 style="color: #60a5fa; font-size: 1.05rem;">
-            ⭐ Rate Agent #{{ plan.agent.agent_id }}'s Approach
-          </h3>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">
-            Feeds natural selection evolution loop
-          </span>
-        </div>
-        <p class="help-text" style="margin-bottom: 1rem;">
-          Did this agent's step-by-step roadmap provide clear, practical guidance for teaching {{ student_profile.level }} students?
-        </p>
-
-        <form action="{{ url_for('submit_feedback_route') }}" method="POST">
-          <input type="hidden" name="agent_id" value="{{ plan.agent.agent_id }}">
-          <input type="hidden" name="topic" value="{{ topic }}">
-          <input type="hidden" name="student_level" value="{{ student_profile.level }}">
-          <input type="hidden" name="lesson_excerpt" value="{{ plan.lesson_plan[:400] }}">
-
-          <div class="form-group">
-            <label>Rate Pedagogical Quality (1 = Poor, 5 = Excellent) <span style="color: var(--danger);">*</span></label>
-            <div class="star-rating">
-              <input type="radio" id="star5-{{ loop.index0 }}" name="score" value="5" required /><label for="star5-{{ loop.index0 }}" title="5 stars - Outstanding">★</label>
-              <input type="radio" id="star4-{{ loop.index0 }}" name="score" value="4" /><label for="star4-{{ loop.index0 }}" title="4 stars - Good">★</label>
-              <input type="radio" id="star3-{{ loop.index0 }}" name="score" value="3" /><label for="star3-{{ loop.index0 }}" title="3 stars - Acceptable">★</label>
-              <input type="radio" id="star2-{{ loop.index0 }}" name="score" value="2" /><label for="star2-{{ loop.index0 }}" title="2 stars - Mediocre">★</label>
-              <input type="radio" id="star1-{{ loop.index0 }}" name="score" value="1" /><label for="star1-{{ loop.index0 }}" title="1 star - Poor">★</label>
+        <div class="scorecard-grid">
+          <div class="scorecard-item" style="border-left: 3px solid #10b981;">
+            <div style="font-size: 0.75rem; color: #6ee7b7; font-weight: 700; text-transform: uppercase;">
+              ✓ What Succeeded (Strengths):
+            </div>
+            <div style="color: #e2e8f0; margin-top: 0.25rem;">
+              {{ plan.evaluation.success_rationale }}
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="comment-{{ loop.index0 }}">Teacher Comments / Critique (Optional)</label>
-            <textarea 
-              id="comment-{{ loop.index0 }}" 
-              name="comment" 
-              placeholder="e.g. The opening hook was engaging, but needs more time on the worked example..."
-            ></textarea>
+          <div class="scorecard-item" style="border-left: 3px solid #f59e0b;">
+            <div style="font-size: 0.75rem; color: #fcd34d; font-weight: 700; text-transform: uppercase;">
+              ⚠ Identified Weaknesses & Mistakes:
+            </div>
+            <div style="color: #cbd5e1; margin-top: 0.25rem;">
+              {{ plan.evaluation.mistake_summary }}
+            </div>
           </div>
+        </div>
 
-          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-            <button type="submit" class="btn btn-primary" style="flex: 2;">
-              Submit Rating for Agent #{{ plan.agent.agent_id }}
-            </button>
-            <a href="{{ url_for('index') }}" class="btn btn-secondary" style="flex: 1;">
-              New Lesson
-            </a>
-          </div>
-        </form>
+        <div style="margin-top: 0.75rem; font-size: 0.82rem; color: #94a3b8; border-top: 1px solid var(--card-border); padding-top: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <span>
+            Strategy Lineage: <strong>Generation {{ plan.agent.generation }}</strong> &bull; Total Evaluations: <strong>{{ plan.agent.times_used }}</strong>
+          </span>
+          <details>
+            <summary class="details-summary">Inspect Strategy Genome Prompt</summary>
+            <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #cbd5e1; background: #0f172a; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--card-border); white-space: pre-wrap;">
+{{ plan.agent.strategy_prompt }}
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.75rem;">
+        <button onclick="copyGuide('guide-content-{{ loop.index0 }}')" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
+          📋 Copy Text
+        </button>
+      </div>
+
+      <!-- Rendered HTML Lesson Guide (Beautiful, Formatted, Readable) -->
+      <div id="guide-content-{{ loop.index0 }}" class="lesson-guide-rendered">
+        {{ plan.lesson_plan | markdown }}
       </div>
     </div>
   {% endfor %}
+
+  <!-- Bottom Navigation Buttons -->
+  <div style="display: flex; gap: 1rem; margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
+    <a href="{{ url_for('index') }}" class="btn btn-primary" style="flex: 2;">
+      ➕ Generate Another Lesson
+    </a>
+    <a href="{{ url_for('agents_dashboard') }}" class="btn btn-secondary" style="flex: 1;">
+      🧬 View Agent Lifecycle Ledger
+    </a>
+  </div>
 </div>
 
 <script>
@@ -190,6 +215,17 @@ function showAgentTab(index) {
     } else {
       btn.classList.remove('active');
     }
+  });
+}
+
+function copyGuide(containerId) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  var text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    alert("Lesson Guide copied to clipboard!");
+  }).catch(function(err) {
+    console.error("Failed to copy: ", err);
   });
 }
 </script>

@@ -1,10 +1,12 @@
 """Seed script to initialize Darwin database schema and populate initial teaching agent population."""
 
+import json
 import sys
-from db import init_db, fetch_one, execute_insert
+from db import init_db, fetch_one, fetch_all, execute_insert
 
 INITIAL_AGENTS = [
     {
+        "success_rationale": "Socratic questioning that surfaces student thinking before formal definitions.",
         "strategy_prompt": (
             "You are an inquiry-driven Socratic Teaching Assistant. Your strategy is to lead students to understanding "
             "through carefully sequenced questions, guided thought experiments, and interactive mental models. Rather "
@@ -14,6 +16,7 @@ INITIAL_AGENTS = [
         )
     },
     {
+        "success_rationale": "First-principles analogies that strip jargon until intuition is in place.",
         "strategy_prompt": (
             "You are a First-Principles Teaching Assistant. Your strategy is to deconstruct complex ideas down to their "
             "fundamental axioms and physical or logical truths, deliberately stripping away intimidating jargon at the outset. "
@@ -22,6 +25,7 @@ INITIAL_AGENTS = [
         )
     },
     {
+        "success_rationale": "Scaffolded milestones with checkpoints students can self-verify.",
         "strategy_prompt": (
             "You are a Pragmatic Scaffolding Teaching Assistant. Your strategy is to structure lesson explanations into clear, "
             "modular milestones: (1) The Big Picture in 60 seconds, (2) Step-by-Step Walkthrough with concrete walkthrough examples, "
@@ -81,12 +85,39 @@ def seed_database(force: bool = False, reset: bool = False) -> None:
     for i, agent in enumerate(INITIAL_AGENTS, start=1):
         agent_id = execute_insert(
             """
-            INSERT INTO agents (generation, parent_id, strategy_prompt, status, times_used, avg_score)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO agents (
+                generation, parent_id, strategy_prompt, status,
+                reproduction_reason, success_rationale, times_used, avg_score
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (1, None, agent["strategy_prompt"], "active", 0, 0.0)
+            (
+                1,
+                None,
+                agent["strategy_prompt"],
+                "active",
+                "Created as a Generation-1 origin agent during initial population seeding.",
+                agent.get("success_rationale", "Distinct pedagogical genome in the founding population."),
+                0,
+                0.0,
+            )
         )
         print(f"  [+] Created Agent #{agent_id} (Generation 1)")
+
+    origin_ids = fetch_all("SELECT agent_id FROM agents WHERE parent_id IS NULL ORDER BY agent_id")
+    execute_insert(
+        "INSERT INTO evolution_log (event_type, details) VALUES (%s, %s)",
+        (
+            "origin_population_seeded",
+            json.dumps({
+                "notes": "Generation-1 origin agents created during seeding.",
+                "reproduced": [
+                    {"parent_id": None, "new_agent_id": row["agent_id"], "generation": 1}
+                    for row in origin_ids
+                ],
+            }),
+        ),
+    )
 
     print("Initial population and teacher account successfully seeded!")
 

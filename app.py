@@ -24,13 +24,17 @@ import json
 import logging
 import os
 import uuid
+from datetime import datetime
+from functools import wraps
 from flask import Flask, flash, redirect, render_template, request, session, url_for
+from markupsafe import Markup
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+import markdown as md_module
 
-from db import fetch_all, fetch_one, get_connection, create_teacher, verify_teacher
+from db import fetch_all, fetch_one, create_teacher, verify_teacher, init_db
 from pipeline import run_lesson_pipeline
-from evolution import record_feedback, FEEDBACK_THRESHOLD
+from evolution import FEEDBACK_THRESHOLD
 from transcription import validate_file
 
 # Load environment configuration
@@ -49,16 +53,50 @@ app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32MB max request payload
 
 
 # ---------------------------------------------------------------------------
-# Terminal Database Connection Check
+# Jinja Markdown Filter (Renders Markdown to Beautiful Styled HTML)
+# ---------------------------------------------------------------------------
+@app.template_filter("markdown")
+def render_markdown(text: str) -> Markup:
+    """Render markdown strings as safe, formatted HTML."""
+    if not text:
+        return Markup("")
+    html = md_module.markdown(
+        text,
+        extensions=["extra", "nl2br", "sane_lists"]
+    )
+    return Markup(html)
+
+
+def login_required(view_fn):
+    """Require a logged-in teacher for protected pages."""
+    @wraps(view_fn)
+    def wrapped(*args, **kwargs):
+        if not session.get("teacher_id"):
+            flash("Please log in to continue.", "info")
+            return redirect(url_for("login_route"))
+        return view_fn(*args, **kwargs)
+    return wrapped
+
+
+@app.template_filter("fmt_dt")
+def format_datetime(value) -> str:
+    """Render timestamps in a compact, readable form."""
+    if value is None:
+        return "—"
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d %H:%M")
+    return str(value)
+
+
+# ---------------------------------------------------------------------------
+# Terminal Database Connection Check & Migration
 # ---------------------------------------------------------------------------
 def verify_mysql_connection():
-    """Verify MySQL connectivity and print required terminal message."""
+    """Verify MySQL connectivity, run any pending migrations, and print terminal message."""
     try:
-        conn = get_connection(include_database=True)
-        if conn.is_connected():
-            conn.close()
+        init_db()
     except Exception as e:
-        logger.error(f"Failed to connect to MySQL: {e}")
+        logger.error(f"Failed to verify/migrate MySQL database: {e}")
 
 
 # Run check on startup
@@ -134,14 +172,16 @@ def logout_route():
 # Core Lesson & Feedback Routes
 # ---------------------------------------------------------------------------
 @app.route("/", methods=["GET"])
+@login_required
 def index():
     """Form to submit a new lesson request with topic and optional context."""
     return render_template("index.html")
 
 
 @app.route("/lesson", methods=["POST"])
+@login_required
 def generate_lesson_route():
-    """Run assessment + multi-agent LangGraph pipeline (3 agents) and display comparison."""
+    """Run assessment + 3-agent generation + autonomous Meta-Agent evaluation."""
     topic = request.form.get("topic", "").strip()
     if not topic:
         flash("Please enter a lesson topic to proceed.", "error")
@@ -168,16 +208,21 @@ def generate_lesson_route():
             original_filename = filename
 
     try:
-        # Execute LangGraph pipeline (generates 3 agent proposals)
+        teacher_id = session.get("teacher_id")
+        teacher_name = session.get("teacher_name")
+
         result = run_lesson_pipeline(
             topic=topic,
             context_text=context_text,
             media_path=media_path,
-            original_filename=original_filename
+            original_filename=original_filename,
+            teacher_id=teacher_id,
+            teacher_name=teacher_name
         )
 
         student_profile = result.get("student_profile", {})
         agent_plans = result.get("agent_plans", [])
+        champion_plan = result.get("champion_plan") or (agent_plans[0] if agent_plans else None)
 
         if not agent_plans:
             flash("No active teaching agents found. Please run seed.py to seed the database.", "error")
@@ -188,10 +233,9 @@ def generate_lesson_route():
             topic=topic,
             student_profile=student_profile,
             agent_plans=agent_plans,
-            # Backwards compatibility defaults
-            agent=agent_plans[0]["agent"],
-            collective_memory=agent_plans[0].get("collective_memory", []),
-            lesson_plan=agent_plans[0].get("lesson_plan", "")
+            champion_plan=champion_plan,
+            evolution_triggered=result.get("evolution_triggered", False),
+            evolution_details=result.get("evolution_details")
         )
     except Exception as e:
         logger.exception("Error executing lesson pipeline")
@@ -199,60 +243,27 @@ def generate_lesson_route():
         return redirect(url_for("index"))
 
 
-@app.route("/feedback", methods=["POST"])
-def submit_feedback_route():
-    """Record teacher rating and feedback, update collective memory, and check evolution."""
-    try:
-        agent_id = int(request.form.get("agent_id"))
-        topic = request.form.get("topic", "").strip()
-        student_level = request.form.get("student_level", "intermediate").strip()
-        score = int(request.form.get("score", 3))
-        comment = request.form.get("comment", "").strip() or None
-        lesson_excerpt = request.form.get("lesson_excerpt", "").strip() or None
-        teacher_id = session.get("teacher_id")
-
-        if score < 1 or score > 5:
-            flash("Score must be between 1 and 5.", "error")
-            return redirect(url_for("index"))
-
-        # Process feedback and check natural selection loop
-        result = record_feedback(
-            agent_id=agent_id,
-            topic=topic,
-            student_level=student_level,
-            score=score,
-            comment=comment,
-            lesson_excerpt=lesson_excerpt,
-            teacher_id=teacher_id
-        )
-
-        return render_template(
-            "feedback_result.html",
-            agent_id=agent_id,
-            score=score,
-            comment=comment,
-            result=result
-        )
-
-    except Exception as e:
-        logger.exception("Error processing feedback submission")
-        flash(f"Could not record feedback: {e}", "error")
-        return redirect(url_for("index"))
-
-
 @app.route("/agents", methods=["GET"])
+@login_required
 def agents_dashboard():
-    """Read-only dashboard displaying agent population, status, fitness, and evolution history."""
+    """Dashboard displaying agent population, status, fitness, and lifecycle audit ledger."""
     try:
         agents = fetch_all(
-            "SELECT * FROM agents ORDER BY generation ASC, agent_id ASC"
+            """
+            SELECT 
+                agent_id, generation, parent_id, strategy_prompt, status, 
+                created_at, retired_at, retirement_reason, mistake_summary, 
+                reproduction_reason, success_rationale, times_used, avg_score 
+            FROM agents 
+            ORDER BY generation DESC, avg_score DESC, agent_id DESC
+            """
         )
         active_count = sum(1 for a in agents if a["status"] == "active")
         retired_count = sum(1 for a in agents if a["status"] == "retired")
         max_gen = max((a["generation"] for a in agents), default=1)
 
         raw_logs = fetch_all(
-            "SELECT * FROM evolution_log ORDER BY created_at DESC LIMIT 20"
+            "SELECT * FROM evolution_log ORDER BY created_at DESC LIMIT 25"
         )
         logs = []
         for log in raw_logs:

@@ -8,12 +8,12 @@
     <span>📝</span> Submit a Lesson Request
   </div>
   <p class="help-text" style="margin-bottom: 1.5rem;">
-    Provide a topic and optional student background context (audio/video recording or written notes).
-    Our Educational Assessor evaluates student knowledge, selects an active Teaching Agent from the evolved population,
-    and generates a tailored lesson plan.
+    Enter a topic and optional student context. The assessor builds a student profile, three teaching agents
+    each write a classroom guide for <strong>{{ session.get('teacher_name', 'you') }}</strong>, and the Meta-Agent
+    scores those guides. You follow the champion plan in class — you do not score the agents.
   </p>
 
-  <form action="{{ url_for('generate_lesson_route') }}" method="POST" enctype="multipart/form-data">
+  <form id="lesson-form" action="{{ url_for('generate_lesson_route') }}" method="POST" enctype="multipart/form-data">
     <div class="form-group">
       <label for="topic">Lesson Topic <span style="color: var(--danger);">*</span></label>
       <input 
@@ -28,7 +28,7 @@
     </div>
 
     <div class="form-group">
-      <label for="context_text">Student Context & Notes (Optional)</label>
+      <label for="context_text">Student Context &amp; Notes (Optional)</label>
       <textarea 
         id="context_text" 
         name="context_text" 
@@ -51,8 +51,8 @@
     </div>
 
     <div style="margin-top: 1.5rem;">
-      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.85rem;">
-        🚀 Generate Adaptive Lesson Plan
+      <button type="submit" class="btn btn-primary" id="generate-btn" style="width: 100%; padding: 0.85rem;">
+        Generate 3 Classroom Guides
       </button>
     </div>
   </form>
@@ -60,10 +60,21 @@
 
 <div class="card" style="background: rgba(30, 41, 59, 0.5);">
   <div class="card-title" style="font-size: 1rem; color: var(--text-muted);">
-    <span>🧬</span> How Natural Selection Works in Darwin
+    <span>🧬</span> How Darwin Evolves Agents
   </div>
   <p class="help-text" style="color: #cbd5e1; font-size: 0.9rem;">
-    Every active teaching agent possesses a distinct strategy "genome". Agents share a <strong>MySQL collective memory</strong> of past successes and mistakes. When you rate lesson plans (1–5 stars), the Meta-Agent periodically evolves the population: low-performing agents are retired, while high-performing agents reproduce with mutated prompts informed by lessons learned.
+    Each teacher session gets its own mix of three active agents and distinct classroom scripts.
+    The Meta-Agent scores every proposal, writes mistakes and strengths into the shared MySQL knowledge pool,
+    and periodically retires weak agents and clones strong ones. Open
+    <a href="{{ url_for('agents_dashboard') }}" style="color: #93c5fd;">Agent Population</a>
+    to see when each agent was born, why it was promoted, or why it was destroyed.
   </p>
 </div>
+<script>
+document.getElementById("lesson-form").addEventListener("submit", function () {
+  var btn = document.getElementById("generate-btn");
+  btn.disabled = true;
+  btn.textContent = "Generating guides… this can take a minute";
+});
+</script>
 {% endblock %}

@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+_MYSQL_NOTICE_PRINTED = False
+
+
+def reset_mysql_notice() -> None:
+    """Allow tests to re-assert the one-time MySQL connection notice."""
+    global _MYSQL_NOTICE_PRINTED
+    _MYSQL_NOTICE_PRINTED = False
+
 
 def get_db_config(include_database: bool = True) -> Dict[str, Any]:
     """Return database configuration dictionary loaded from environment."""
@@ -32,9 +40,11 @@ def get_db_config(include_database: bool = True) -> Dict[str, Any]:
 def get_connection(include_database: bool = True) -> mysql.connector.MySQLConnection:
     """Connection-factory function that always passes use_pure=True to mysql.connector."""
     config = get_db_config(include_database=include_database)
+    global _MYSQL_NOTICE_PRINTED
     conn = mysql.connector.connect(**config)
-    if conn.is_connected():
+    if conn.is_connected() and not _MYSQL_NOTICE_PRINTED:
         print("connected to mysql you can proceed", flush=True)
+        _MYSQL_NOTICE_PRINTED = True
     return conn
 
 
@@ -108,6 +118,27 @@ def init_db(schema_path: Optional[str] = None) -> None:
                 cursor.execute("ALTER TABLE feedback ADD CONSTRAINT fk_feedback_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE SET NULL")
         except Exception:
             pass
+
+        # Ensure lifecycle columns exist on agents table
+        lifecycle_cols = [
+            ("retired_at", "TIMESTAMP NULL"),
+            ("retirement_reason", "TEXT NULL"),
+            ("mistake_summary", "TEXT NULL"),
+            ("reproduction_reason", "TEXT NULL"),
+            ("success_rationale", "TEXT NULL")
+        ]
+        for col_name, col_type in lifecycle_cols:
+            try:
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'agents' 
+                      AND COLUMN_NAME = '{col_name}'
+                """)
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(f"ALTER TABLE agents ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
 
 
 def execute_query(query: str, params: Optional[Tuple[Any, ...]] = None, commit: bool = False) -> int:
