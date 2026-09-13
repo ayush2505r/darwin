@@ -35,6 +35,54 @@
   </div>
 </div>
 
+<div class="card" style="border: 1px solid rgba(167,139,250,.35); background: linear-gradient(135deg, rgba(49,46,129,.5), rgba(14,116,144,.35)); margin-top: 1.25rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+    <div>
+      <div class="card-title" style="margin-bottom:.35rem;"><span>🥣</span> Soup Model Training</div>
+      <p class="help-text" style="margin:0;">The run reaches 10% early and completes through a paced 2-minute Soup presentation cycle. This demo does not download model weights.</p>
+    </div>
+    <form action="{{ url_for('start_soup_training_route') }}" method="POST">
+      <button class="btn btn-primary" type="submit">
+        ▶ Train with Soup
+      </button>
+    </form>
+  </div>
+  {% if soup_runs %}
+  {% set run = soup_runs[0] %}
+  <div id="soup-training-panel" style="margin-top:1.1rem; padding:1rem; border-radius:14px; background:rgba(15,23,42,.45);">
+    <div style="display:flex; justify-content:space-between; gap:1rem; font-size:.85rem; color:var(--text-muted);">
+      <span id="soup-status">{{ run.status|capitalize }}</span><strong id="soup-percent" style="color:#c4b5fd;">{{ run.progress_percent or 0 }}%</strong>
+    </div>
+    <div style="height:10px; background:rgba(148,163,184,.2); border-radius:999px; overflow:hidden; margin:.55rem 0;">
+      <div id="soup-progress" style="height:100%; width:{{ run.progress_percent or 0 }}%; background:linear-gradient(90deg,#a78bfa,#22d3ee,#34d399); transition:width .5s ease;"></div>
+    </div>
+    <div id="soup-step" style="font-size:.82rem; color:#dbeafe;">{{ run.current_step or 'Waiting to start...' }}</div>
+  </div>
+  <script>
+    (function () {
+      const runId = {{ run.run_id|tojson }};
+      const status = document.getElementById('soup-status');
+      const percent = document.getElementById('soup-percent');
+      const progress = document.getElementById('soup-progress');
+      const step = document.getElementById('soup-step');
+      function refresh() {
+        fetch('{{ url_for("soup_training_status_route", run_id=run.run_id) }}')
+          .then(response => response.json())
+          .then(data => {
+            if (data.error) return;
+            status.textContent = (data.status || '').replace(/^./, c => c.toUpperCase());
+            percent.textContent = `${data.progress_percent || 0}%`;
+            progress.style.width = `${data.progress_percent || 0}%`;
+            step.textContent = data.current_step || data.error_message || 'Preparing...';
+            if (data.status === 'queued' || data.status === 'running') window.setTimeout(refresh, 1000);
+          }).catch(() => window.setTimeout(refresh, 2000));
+      }
+      if (status.textContent.trim().toLowerCase() === 'queued' || status.textContent.trim().toLowerCase() === 'running') refresh();
+    })();
+  </script>
+  {% endif %}
+</div>
+
 {% for a in agents %}
 <div class="lifecycle-card {% if a.status == 'retired' %}lifecycle-card-retired{% else %}lifecycle-card-active{% endif %}">
 

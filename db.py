@@ -161,6 +161,23 @@ def init_db(schema_path: Optional[str] = None) -> None:
             except Exception:
                 pass
 
+        soup_training_cols = [
+            ("current_step", "VARCHAR(255) NULL"),
+            ("progress_percent", "TINYINT NOT NULL DEFAULT 0"),
+        ]
+        for col_name, col_type in soup_training_cols:
+            try:
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'soup_training_runs'
+                      AND COLUMN_NAME = '{col_name}'
+                """)
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(f"ALTER TABLE soup_training_runs ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+
 
 def execute_query(query: str, params: Optional[Tuple[Any, ...]] = None, commit: bool = False) -> int:
     """Execute an INSERT, UPDATE, or DELETE query and return affected rows."""

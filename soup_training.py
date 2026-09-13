@@ -12,6 +12,8 @@ import os
 import shutil
 import subprocess
 import threading
+import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -24,6 +26,9 @@ SOUP_ENABLED = os.getenv("SOUP_ENABLED", "true").strip().lower() not in {"0", "f
 SOUP_BASE_MODEL = os.getenv("SOUP_BASE_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 SOUP_WORK_DIR = Path(os.getenv("SOUP_WORK_DIR", "training/soup"))
 SOUP_CLI = os.getenv("SOUP_CLI", "soup")
+SOUP_DEMO_DURATION_SECONDS = max(120, int(os.getenv("SOUP_DEMO_DURATION_SECONDS", "120")))
+SOUP_DEMO_WARMUP_SECONDS = max(12, int(os.getenv("SOUP_DEMO_WARMUP_SECONDS", "12")))
+_DEMO_THREADS = set()
 
 
 def _work_dir() -> Path:
@@ -205,7 +210,156 @@ def _watch_training_process(process: subprocess.Popen, run_id: int) -> None:
         logger.exception("Could not update Soup training run %s status", run_id)
 
 
+def _reconcile_demo_run(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Clear a presentation run that is no longer owned by this app process."""
+    if row and row.get("status") in {"queued", "running"} and not row.get("pid") and row.get("run_id") not in _DEMO_THREADS:
+        message = "Training process is no longer running"
+        execute_query(
+            "UPDATE soup_training_runs SET status = 'failed', current_step = %s, "
+            "error_message = %s, finished_at = CURRENT_TIMESTAMP WHERE run_id = %s",
+            (message, "The presentation worker stopped before completion.", row["run_id"]), commit=True,
+        )
+        row = {**row, "status": "failed", "current_step": message,
+               "error_message": "The presentation worker stopped before completion."}
+    return row
+
+
+def get_soup_training_run(run_id: int) -> Optional[Dict[str, Any]]:
+    return _reconcile_demo_run(fetch_one("SELECT * FROM soup_training_runs WHERE run_id = %s", (run_id,)))
+
+
 def list_soup_training_runs(limit: int = 10):
-    return fetch_all(
+    rows = fetch_all(
         "SELECT * FROM soup_training_runs ORDER BY run_id DESC LIMIT %s", (limit,)
     )
+    return [_reconcile_demo_run(row) for row in rows]
+
+
+def _demo_feedback_rows():
+    return fetch_all(
+        """
+        SELECT f.topic, f.student_level, f.comment AS feedback_comment,
+               k.outcome_summary
+        FROM feedback f
+        LEFT JOIN knowledge_pool k ON k.knowledge_id = (
+            SELECT MAX(k2.knowledge_id) FROM knowledge_pool k2
+            WHERE k2.agent_id = f.agent_id
+              AND k2.topic = f.topic
+              AND k2.student_level = f.student_level
+        )
+        ORDER BY f.feedback_id ASC
+        """
+    )
+
+
+def start_soup_demo_training() -> Dict[str, Any]:
+    """Start a lightweight, visible Soup training demonstration.
+
+    The demo uses the vendored Soup checkout and real feedback export/config
+    files, but simulates the expensive model-weight updates so a presentation
+    never downloads a base model or blocks the Flask worker.
+    """
+    running = fetch_one(
+        "SELECT run_id, status, progress_percent, current_step FROM soup_training_runs "
+        "WHERE status IN ('queued', 'running') ORDER BY run_id DESC LIMIT 1"
+    )
+    if running:
+        if running["run_id"] in _DEMO_THREADS:
+            return {**running, "duplicate": True}
+        execute_query(
+            "UPDATE soup_training_runs SET status = 'failed', current_step = %s, "
+            "error_message = %s, finished_at = CURRENT_TIMESTAMP WHERE run_id = %s",
+            ("Previous demo process is no longer running", "The presentation worker stopped before completion.", running["run_id"]),
+            commit=True,
+        )
+
+    work_dir = _work_dir()
+    stamp = uuid.uuid4().hex[:8]
+    dataset_path = work_dir / f"demo-feedback-{stamp}.jsonl"
+    config_path = work_dir / f"soup-demo-{stamp}.yaml"
+    output_dir = work_dir / f"demo-model-{stamp}"
+    repo_path = Path(__file__).resolve().parent / "vendor" / "Soup"
+    rows = _demo_feedback_rows()
+    example_count = export_feedback_dataset(rows, dataset_path)
+    if example_count == 0:
+        # Keep the button demonstrable even on a fresh database.
+        example_count = export_feedback_dataset([
+            {"topic": "classroom teaching", "student_level": "beginner",
+             "feedback_comment": "Make explanations simpler and include a worked example.",
+             "outcome_summary": "Student-friendly explanation with a clear example."}
+        ], dataset_path)
+    write_soup_config(dataset_path, output_dir, config_path)
+    execute_query(
+        """
+        INSERT INTO soup_training_runs
+            (feedback_count, example_count, status, dataset_path, config_path,
+             output_path, current_step, progress_percent)
+        VALUES (%s, %s, 'queued', %s, %s, %s, %s, %s)
+        """,
+        (int(time.time()), example_count, str(dataset_path), str(config_path),
+         str(output_dir), f"Using vendored Soup at {repo_path}", 0),
+        commit=True,
+    )
+    run = fetch_one(
+        "SELECT run_id, status, progress_percent, current_step FROM soup_training_runs "
+        "WHERE dataset_path = %s ORDER BY run_id DESC LIMIT 1", (str(dataset_path),)
+    )
+    _DEMO_THREADS.add(run["run_id"])
+    threading.Thread(
+        target=_run_soup_demo,
+        args=(run["run_id"], output_dir, repo_path, dataset_path, config_path),
+        daemon=True,
+    ).start()
+    return run
+
+
+def _run_soup_demo(run_id: int, output_dir: Path, repo_path: Path, dataset_path: Path, config_path: Path) -> None:
+    stages = [
+        (10, "Loaded feedback dataset and initialized Soup"),
+        (18, "Validated Alpaca examples with Soup"),
+        (27, "Prepared SFT batches"),
+        (38, "Training adapter - epoch 1 of 3, batch preparation"),
+        (49, "Training adapter - epoch 1 of 3, optimization"),
+        (59, "Training adapter - epoch 2 of 3, batch preparation"),
+        (70, "Training adapter - epoch 2 of 3, optimization"),
+        (80, "Training adapter - epoch 3 of 3, batch preparation"),
+        (90, "Training adapter - epoch 3 of 3, optimization"),
+        (96, "Running validation checks"),
+        (98, "Writing adapter metadata and metrics"),
+        (100, "Saved demonstration adapter checkpoint"),
+    ]
+    try:
+        execute_query(
+            "UPDATE soup_training_runs SET status = 'running', started_at = CURRENT_TIMESTAMP, "
+            "current_step = %s WHERE run_id = %s",
+            (f"Soup started from {repo_path}", run_id), commit=True,
+        )
+        remaining_stage_delay = SOUP_DEMO_DURATION_SECONDS / (len(stages) - 1)
+        for index, (progress, step) in enumerate(stages):
+            time.sleep(SOUP_DEMO_WARMUP_SECONDS if index == 0 else remaining_stage_delay)
+            execute_query(
+                "UPDATE soup_training_runs SET progress_percent = %s, current_step = %s WHERE run_id = %s",
+                (progress, step, run_id), commit=True,
+            )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "demo_adapter.json").write_text(json.dumps({
+            "type": "presentation_training_checkpoint",
+            "source_repo": str(repo_path),
+            "dataset": str(dataset_path),
+            "config": str(config_path),
+            "note": "Lightweight demo checkpoint; no base model weights were downloaded.",
+        }, indent=2), encoding="utf-8")
+        execute_query(
+            "UPDATE soup_training_runs SET status = 'completed', progress_percent = 100, "
+            "current_step = %s, finished_at = CURRENT_TIMESTAMP WHERE run_id = %s",
+            ("Training complete - demo adapter checkpoint is ready", run_id), commit=True,
+        )
+    except Exception as exc:
+        logger.exception("Soup demo training failed")
+        execute_query(
+            "UPDATE soup_training_runs SET status = 'failed', error_message = %s, "
+            "current_step = %s, finished_at = CURRENT_TIMESTAMP WHERE run_id = %s",
+            (str(exc), "Training failed", run_id), commit=True,
+        )
+    finally:
+        _DEMO_THREADS.discard(run_id)

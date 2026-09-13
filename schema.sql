@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS soup_training_runs (
     output_path VARCHAR(1024) NOT NULL,
     log_path VARCHAR(1024) NULL,
     pid BIGINT NULL,
+    current_step VARCHAR(255) NULL,
+    progress_percent TINYINT NOT NULL DEFAULT 0,
     error_message TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP NULL,

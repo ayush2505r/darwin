@@ -38,6 +38,7 @@ from evolution import FEEDBACK_THRESHOLD, record_feedback
 from transcription import validate_file
 from resource_search import search_resources_safely
 from classroom_sessions import create_classroom_session, get_classroom_session, record_student_attempt, get_session_attempts, create_notes_pdf
+from soup_training import get_soup_training_run, list_soup_training_runs, start_soup_demo_training
 
 # Load environment configuration
 load_dotenv()
@@ -450,6 +451,7 @@ def agents_dashboard():
         raw_logs = fetch_all(
             "SELECT * FROM evolution_log ORDER BY created_at DESC LIMIT 25"
         )
+        soup_runs = list_soup_training_runs(5)
         logs = []
         for log in raw_logs:
             parsed = None
@@ -472,12 +474,38 @@ def agents_dashboard():
             retired_count=retired_count,
             max_generation=max_gen,
             logs=logs,
-            feedback_threshold=FEEDBACK_THRESHOLD
+            feedback_threshold=FEEDBACK_THRESHOLD,
+            soup_runs=soup_runs,
         )
     except Exception as e:
         logger.exception("Error loading agent dashboard")
         flash(f"Could not load agents dashboard: {e}", "error")
         return redirect(url_for("index"))
+
+
+@app.route("/training/soup/start", methods=["POST"])
+@login_required
+def start_soup_training_route():
+    """Start the visible Soup presentation training run."""
+    try:
+        run = start_soup_demo_training()
+        if run.get("duplicate"):
+            flash("A Soup training run is already in progress.", "info")
+        else:
+            flash("Soup training started. Watch the live progress on the Agent Population page.", "success")
+    except Exception as exc:
+        logger.exception("Could not start Soup training demo")
+        flash(f"Could not start Soup training: {exc}", "error")
+    return redirect(url_for("agents_dashboard"))
+
+
+@app.route("/training/soup/status/<int:run_id>")
+@login_required
+def soup_training_status_route(run_id: int):
+    run = get_soup_training_run(run_id)
+    if not run:
+        return {"error": "Training run not found"}, 404
+    return run
 
 
 if __name__ == "__main__":

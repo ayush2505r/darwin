@@ -1,0 +1,17 @@
+base: "Qwen/Qwen2.5-0.5B-Instruct"
+task: sft
+data:
+  train: "C:\\Users\\Anjali\\OneDrive\\Desktop\\darwin\\training\\soup\\demo-feedback-412afa1a.jsonl"
+  format: alpaca
+  val_split: 0.1
+  max_length: 2048
+training:
+  epochs: 3
+  lr: 0.00002
+  batch_size: auto
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: auto
+  quantization: 4bit
+output: "C:\\Users\\Anjali\\OneDrive\\Desktop\\darwin\\training\\soup\\demo-model-412afa1a"
