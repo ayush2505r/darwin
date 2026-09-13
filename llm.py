@@ -59,7 +59,7 @@ MAX_OUTPUT_TOKENS_BY_HINT: Dict[str, int] = {
     "mutate": 700,          # new prompt genome
     "teach": 3200,          # long 5-phase classroom guide
     "transcribe_summary": 1500,
-    "session_material": 2200,
+    "session_material": 3600,
 }
 DEFAULT_MAX_OUTPUT_TOKENS: int = _int_env("GROQ_DEFAULT_MAX_OUTPUT_TOKENS", 1600)
 

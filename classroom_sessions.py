@@ -20,7 +20,30 @@ def _new_session_id() -> str:
     return "DRW-" + secrets.token_hex(4).upper()
 
 
-def _fallback_materials(topic: str, level: str) -> Dict[str, Any]:
+def _student_facing_excerpt(lesson_plan: str) -> str:
+    """Keep useful concept explanations while removing teacher-planning scaffolding."""
+    ignored_markers = (
+        "phase ", "pedagogical", "prepared for", "teacher's step", "teacher script",
+        "what ", "objective", "targeting gaps", "common misconception to dispel",
+        "classroom guide", "minutes", "blackboard flow", "what the teacher",
+    )
+    kept = []
+    for raw_line in lesson_plan.splitlines():
+        line = raw_line.strip()
+        lowered = line.lower()
+        if not line or any(marker in lowered for marker in ignored_markers):
+            continue
+        line = re.sub(r"[*_`#]", "", line).strip()
+        if line and len(line) > 20:
+            kept.append(line)
+    return " ".join(kept[:18])
+
+
+def _fallback_materials(topic: str, level: str, lesson_plan: str = "") -> Dict[str, Any]:
+    lesson_content = _student_facing_excerpt(lesson_plan) or (
+        f"In this lesson, we will understand {topic} from the beginning. "
+        "We will connect the main idea to a simple example, then use that idea to explain a new situation."
+    )
     return {
         "flashcards": [
             {"front": f"What is the central idea of {topic}?", "back": f"Explain {topic} in one clear sentence and give one example."},
@@ -31,19 +54,31 @@ def _fallback_materials(topic: str, level: str) -> Dict[str, Any]:
             {"question": f"Which approach best demonstrates understanding of {topic}?", "options": ["Memorizing a definition only", "Explaining the idea and applying it to a new example", "Copying an answer", "Skipping the example"], "answer": 1, "explanation": "Applying the idea to a new example demonstrates transfer."},
             {"question": "What should a student do when the first attempt is incorrect?", "options": ["Stop immediately", "Guess without checking", "Identify the step that failed and revise it", "Ignore the result"], "answer": 2, "explanation": "Finding the failed step makes the mistake useful for learning."},
         ],
-        "notes": f"# {topic}\n\n## Key idea\nUnderstand the definition, mechanism, and one worked example.\n\n## Study checklist\n- Explain the central idea in your own words.\n- Solve one familiar example.\n- Try a new example and explain each step.\n- Check the result and describe any remaining question.\n",
+        "notes": f"# {topic}\n\n"
+        f"## What you will learn\nBy the end of this lesson, you should be able to define {topic}, explain it simply, recognize it in everyday examples, and use the idea to solve a new problem.\n\n"
+        f"## Complete explanation\nLet's learn this step by step. {lesson_content}\n\n"
+        f"## Key vocabulary\n- **{topic}**: the main idea we are learning today.\n- **Pattern**: something that repeats or helps us recognize what is happening.\n- **Example**: a specific situation that makes the idea easier to understand.\n\n"
+        f"## How it works\n1. Start by identifying the important information in the problem.\n2. Connect that information to the definition of {topic}.\n3. Follow the process one step at a time.\n4. Check the result by explaining why it makes sense.\n\n"
+        f"## Worked example\nImagine a simple situation involving {topic}. First, describe what is happening. Next, choose the idea from this lesson that explains it. Then explain each step in plain language. Finally, check whether your answer matches the original situation. This same pattern can be used on a new problem.\n\n"
+        f"## Common mistakes\nDo not memorize a sentence without understanding what it means. Do not skip the middle steps or assume that a prediction is always correct. If you get an answer wrong, return to the definition, find the first step that does not match it, and try again.\n\n"
+        f"## When to use this idea\nUse {topic} when you need to explain, recognize, compare, predict, or solve something related to the lesson. Look for the clues from the examples and ask which part of the definition fits.\n\n"
+        f"## Final summary\nRemember the meaning of {topic}, the steps that make it work, and the reason behind the worked example. You understand the topic when you can explain it to someone younger and apply it to a new situation without copying the example.\n",
     }
 
 
 def _generate_materials(topic: str, level: str, lesson_plan: str, profile: Dict[str, Any]) -> Dict[str, Any]:
     system_prompt = (
-        "You create a compact student follow-up pack from a teacher's lesson. "
+        "You create a complete student study guide from a teacher's lesson. This is a replacement for taking notes, not a short teacher summary. "
         "Return ONLY valid JSON with this exact shape: "
         "{\"flashcards\":[{\"front\":\"...\",\"back\":\"...\"}],"
         "\"mcqs\":[{\"question\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],"
         "\"answer\":0,\"explanation\":\"...\"}],\"notes\":\"markdown...\"}. "
         "Create 5 flashcards and 5 multiple-choice questions. The answer is a zero-based option index. "
-        "Questions must test understanding and application, not trivia. Notes should be clear, student-friendly Markdown."
+        "Questions must test understanding and application, not trivia. "
+        "The notes field must be detailed, self-contained, and student-friendly Markdown of at least 900 words when the lesson supports it. "
+        "Write as a patient teacher speaking directly to a student who is learning this for the first time. Use simple words, short paragraphs, friendly questions, concrete everyday examples, and explain the reasoning behind every step. "
+        "It must teach every important idea from the teacher lesson and use these sections: What you will learn, Key vocabulary, Complete explanation, How it works or step-by-step method, Worked example, Common mistakes, When to use this, and Final summary. "
+        "Never copy or mention teacher-only planning such as phases, lesson timing, pedagogical strategy, classroom management, student profile, teacher scripts, blackboard flow, or instructions about what the teacher should say. Do not mention that these notes were generated, do not mention this prompt, and do not tell the student to take their own notes. Do not pad the notes with generic motivational language."
     )
     user_prompt = (
         f"Topic: {topic}\nStudent level: {level}\nStudent profile: {json.dumps(profile, ensure_ascii=False)}\n"
@@ -55,7 +90,9 @@ def _generate_materials(topic: str, level: str, lesson_plan: str, profile: Dict[
         cleaned = re.sub(r"^```(?:json)?", "", cleaned).strip()
         cleaned = re.sub(r"```$", "", cleaned).strip()
     data = json.loads(cleaned)
-    if not isinstance(data, dict) or not data.get("flashcards") or not data.get("mcqs") or not data.get("notes"):
+    notes = str(data.get("notes") or "") if isinstance(data, dict) else ""
+    required_sections = ("Complete", "Worked", "Common", "summary")
+    if not isinstance(data, dict) or not data.get("flashcards") or not data.get("mcqs") or len(notes) < 900 or not all(section.lower() in notes.lower() for section in required_sections):
         raise ValueError("Session material JSON is incomplete")
     return data
 
@@ -68,7 +105,7 @@ def create_classroom_session(
     student_profile: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Generate and persist one immutable student pack for a teacher lesson."""
-    materials = _fallback_materials(topic, student_level)
+    materials = _fallback_materials(topic, student_level, lesson_plan)
     try:
         materials = _generate_materials(topic, student_level, lesson_plan, student_profile)
     except Exception as exc:
