@@ -12,6 +12,9 @@ This is a functional MVP: Flask templates, LangGraph pipeline, Groq LLM, MySQL w
 2. Submit a topic plus optional student notes or media (`/`).
 3. Read the student-level assessment and three classroom guides (`/lesson`).
 4. Follow the Meta-Agent’s champion plan in class.
+5. Create a classroom session with a unique session ID.
+6. Share the ID with students so they can open the stored flashcards, MCQs, and student notes PDF.
+7. Open the session results page to review student scores and understanding.
 
 Teachers **do not** rate agents. Fitness, retirement, and reproduction are Meta-Agent decisions. Different teachers receive different agent mixes and different classroom scripts for the same topic.
 
@@ -33,6 +36,15 @@ Evolution rule (plain ranking, not a full GA):
 - Log birth, promotion, destruction, and reasons in `agents` + `evolution_log`.
 
 If the active population drops below the floor, the Meta-Agent **spawns new agents**. It does not resurrect retired ones.
+
+## Student classroom sessions
+
+Every generated lesson creates one immutable classroom pack. The pack is generated once and stored in MySQL so students do not trigger repeated Groq calls.
+
+- Students join at `/student` with the teacher's session ID.
+- Flashcards and understanding-check MCQs are generated from the lesson and stored with the session.
+- Attempts are scored from the stored answer key and shown to the teacher at `/teacher/session/<session_id>/results`.
+- Student notes are generated as a complete, student-facing HTML study guide and rendered to a colorful PDF. The notes use simple explanations, vocabulary, worked examples, common mistakes, and summaries rather than teacher-only planning scripts.
 
 ---
 
@@ -77,9 +89,11 @@ Fill `.env` (see `.env.example`). Set `GROQ_MODEL` to a live Groq id (for exampl
 
 The authenticated `Teaching Resources` page uses the `ddgs` DuckDuckGo search library to find and rank classroom-oriented web resources. Install dependencies with `pip install -r requirements.txt`; the search page handles missing packages or temporary search failures without affecting lesson generation.
 
-## Soup feedback training
+## Soup LLM training
 
-The Soup repository is vendored at `vendor/Soup`. Every 1,000th feedback record creates an Alpaca JSONL dataset and a Soup SFT config under `training/soup`, then launches `soup train` in a detached process. Runs are recorded in the `soup_training_runs` MySQL table and duplicate launches for the same feedback boundary are prevented.
+The Soup repository is vendored at `vendor/Soup`. Every 1,000th feedback record creates an Alpaca JSONL dataset and a Soup SFT config under `training/soup`, then launches the real `soup train` command in a detached process. This path performs actual LLM fine-tuning when the Soup training dependencies, base model, and hardware are installed; it is not a fake progress animation. Runs are recorded in the `soup_training_runs` MySQL table and duplicate launches for the same feedback boundary are prevented.
+
+The Agent Population page also contains a short presentation-mode control. That control is intentionally labeled as a presentation run and does not claim to update model weights. Use the 1,000-feedback path for genuine training. The UI reconciles stopped presentation workers so a stale run is never shown as permanently running.
 
 Soup requires Python 3.10–3.12 and its training extra. Install it in a compatible environment, then set `SOUP_CLI` to that environment's `soup` executable if it is not on `PATH`:
 
@@ -88,7 +102,7 @@ py -3.12 -m venv .soup-venv
 .soup-venv\Scripts\pip install -e "vendor/Soup[train]"
 ```
 
-Configure `SOUP_BASE_MODEL`, `SOUP_ENABLED`, and `SOUP_WORK_DIR` in `.env.example` as needed. A CUDA GPU is recommended; CPU training is supported by Soup but is very slow.
+Configure `SOUP_BASE_MODEL`, `SOUP_ENABLED`, `SOUP_WORK_DIR`, and `SOUP_CLI` in `.env.example` as needed. A CUDA GPU is recommended; CPU training is supported by Soup but is very slow. `SOUP_DEMO_DURATION_SECONDS` and `SOUP_DEMO_WARMUP_SECONDS` only control the clearly labeled presentation run; they do not change real LLM training.
 
 If `GROQ_API_KEY` is empty, the app uses deterministic mock LLM responses so the pipeline still runs.
 
@@ -128,4 +142,4 @@ python test_darwin.py
 
 ## Database tables
 
-`teachers`, `agents` (including born/destroyed timestamps and reasons), `knowledge_pool`, `feedback` (Meta-Agent scores), `evolution_log`.
+`teachers`, `agents` (including born/destroyed timestamps and reasons), `knowledge_pool`, `feedback` (Meta-Agent scores), `evolution_log`, `soup_training_runs`, `classroom_sessions`, and `student_attempts`.
